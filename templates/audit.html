@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}ARIA — Platform Audit Explorer{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+  <div>
+    <div style="font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--zinc-500); margin-bottom: 4px;">
+      Audit Trail
+    </div>
+    <h1 style="font-size: 20px; font-weight: 700;">Platform Audit Explorer</h1>
+    <p style="color: var(--zinc-500); font-size: 12px; margin-top: 2px;">
+      Cross-merchant explainability, budget bounds, and Razorpay transaction refs (Python SQLite backend)
+    </p>
+  </div>
+  <button id="refreshAuditBtn" class="btn btn-secondary btn-sm">Refresh Logs</button>
+</div>
+
+<div style="padding: 24px 32px;">
+  <!-- Metrics Row -->
+  <div class="grid-4" style="margin-bottom: 20px;">
+    <div class="metric-card">
+      <div id="statTotal" class="metric-value">0</div>
+      <div class="metric-label">Total Logged Actions</div>
+    </div>
+    <div class="metric-card">
+      <div id="statSuccess" class="metric-value" style="color: var(--status-success);">0</div>
+      <div class="metric-label">Successful Operations</div>
+    </div>
+    <div class="metric-card">
+      <div id="statBlocked" class="metric-value" style="color: var(--status-blocked);">0</div>
+      <div class="metric-label">Blocked (Budget Guard)</div>
+    </div>
+    <div class="metric-card">
+      <div id="statRevenue" class="metric-value" style="color: var(--amber-500);">₹0</div>
+      <div class="metric-label">Revenue Captured</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-end;">
+    <div>
+      <label style="font-size: 10px; font-weight: 500; color: var(--zinc-600); text-transform: uppercase; display: block; margin-bottom: 4px;">Merchant Filter</label>
+      <select id="filterMerchant" class="input" style="width: auto; padding: 6px 32px 6px 10px; font-size: 12px;">
+        <option value="">All Merchants</option>
+        {% for m in merchants %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label style="font-size: 10px; font-weight: 500; color: var(--zinc-600); text-transform: uppercase; display: block; margin-bottom: 4px;">Agent Type</label>
+      <select id="filterAgentType" class="input" style="width: auto; padding: 6px 32px 6px 10px; font-size: 12px;">
+        <option value="">All Agent Types</option>
+        <option value="BUYER">BUYER</option>
+        <option value="MERCHANT">MERCHANT</option>
+      </select>
+    </div>
+
+    <div>
+      <label style="font-size: 10px; font-weight: 500; color: var(--zinc-600); text-transform: uppercase; display: block; margin-bottom: 4px;">Status</label>
+      <select id="filterStatus" class="input" style="width: auto; padding: 6px 32px 6px 10px; font-size: 12px;">
+        <option value="">All Statuses</option>
+        <option value="SUCCESS">SUCCESS</option>
+        <option value="BLOCKED">BLOCKED</option>
+        <option value="FAILED">FAILED</option>
+        <option value="INFO">INFO</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Audit Table -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <table class="table-clean" style="font-size: 11px;">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Agent ID / Type</th>
+          <th>Action Type</th>
+          <th>Status</th>
+          <th>Bound / Constraint</th>
+          <th style="min-width: 260px;">LLM Reasoning & Details</th>
+          <th>Razorpay Ref</th>
+        </tr>
+      </thead>
+      <tbody id="auditTableBody">
+        <tr><td colspan="7" style="text-align: center; color: var(--zinc-600); padding: 32px;">Loading audit logs...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function formatPrice(paise) {
+    return '₹' + Math.floor(paise / 100).toLocaleString('en-IN');
+  }
+
+  async function fetchAuditLogs() {
+    const m = document.getElementById('filterMerchant').value;
+    const a = document.getElementById('filterAgentType').value;
+    const s = document.getElementById('filterStatus').value;
+
+    const params = new URLSearchParams({ limit: '100' });
+    if (m) params.set('merchantId', m);
+    if (a) params.set('agentType', a);
+    if (s) params.set('status', s);
+
+    const res = await fetch(`/api/audit?${params}`);
+    const data = await res.json();
+    const entries = data.entries || [];
+    const stats = data.stats || {};
+
+    document.getElementById('statTotal').textContent = stats.total || 0;
+    document.getElementById('statSuccess').textContent = stats.byStatus?.SUCCESS || 0;
+    document.getElementById('statBlocked').textContent = stats.blockedActions || 0;
+    document.getElementById('statRevenue').textContent = formatPrice(stats.totalRevenuePaise || 0);
+
+    const tbody = document.getElementById('auditTableBody');
+    if (entries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--zinc-600); padding: 32px;">No audit logs match filters.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = entries.map(e => `
+      <tr>
+        <td style="font-family: var(--font-mono); color: var(--zinc-500); white-space: nowrap; font-size: 10px;">
+          ${new Date(e.timestamp).toLocaleTimeString()}
+        </td>
+        <td style="white-space: nowrap;">
+          <div style="font-weight: 500;">${e.agent_id}</div>
+          <span class="badge ${e.agent_type === 'BUYER' ? 'badge-buyer' : 'badge-merchant'}">${e.agent_type}</span>
+        </td>
+        <td style="font-family: var(--font-mono); font-weight: 500;">${e.action_type}</td>
+        <td>
+          <span class="badge ${e.status === 'SUCCESS' ? 'badge-success' : e.status === 'BLOCKED' ? 'badge-blocked' : e.status === 'FAILED' ? 'badge-failed' : 'badge-info'}">
+            ${e.status}
+          </span>
+        </td>
+        <td style="font-family: var(--font-mono); color: var(--amber-500); font-size: 10px;">${e.bound || '-'}</td>
+        <td style="color: var(--zinc-400); line-height: 1.4;">
+          ${e.reasoning || '-'}
+          ${e.amount_paise ? `<span style="display: block; color: var(--zinc-300); font-weight: 600; margin-top: 2px;">${formatPrice(e.amount_paise)}</span>` : ''}
+        </td>
+        <td style="font-family: var(--font-mono); white-space: nowrap;">
+          ${e.razorpay_ref ? `<span style="padding: 2px 6px; background: var(--bg-input); border-radius: 4px; border: var(--border-default); font-size: 10px;">${e.razorpay_ref}</span>` : '-'}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('refreshAuditBtn').addEventListener('click', fetchAuditLogs);
+  document.getElementById('filterMerchant').addEventListener('change', fetchAuditLogs);
+  document.getElementById('filterAgentType').addEventListener('change', fetchAuditLogs);
+  document.getElementById('filterStatus').addEventListener('change', fetchAuditLogs);
+
+  fetchAuditLogs();
+  setInterval(fetchAuditLogs, 5000);
+</script>
+{% endblock %}

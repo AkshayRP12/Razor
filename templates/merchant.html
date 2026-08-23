@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}ARIA — Merchant OS{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+  <div>
+    <div style="font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--zinc-500); margin-bottom: 4px;">
+      Merchant OS
+    </div>
+    <h1 id="merchantTitle" style="font-size: 20px; font-weight: 700;">ByteForge</h1>
+    <p id="merchantTagline" style="color: var(--zinc-500); font-size: 12px; margin-top: 2px;">Build your rig, your way</p>
+  </div>
+
+  <select id="merchantSelect" class="input" style="width: auto; padding: 7px 32px 7px 12px; font-size: 13px; font-weight: 500;">
+    {% for m in merchants %}
+    <option value="{{ m.id }}">{{ m.name }} — {{ m.category }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div style="padding: 24px 32px;">
+  <!-- Metrics Row -->
+  <div class="grid-4" style="margin-bottom: 20px;">
+    <div class="metric-card">
+      <div id="mProductCount" class="metric-value">4</div>
+      <div class="metric-label">Products</div>
+    </div>
+    <div class="metric-card">
+      <div id="mTotalOrders" class="metric-value">0</div>
+      <div class="metric-label">Orders</div>
+    </div>
+    <div class="metric-card">
+      <div id="mUpsellRevenue" class="metric-value" style="color: var(--status-success);">₹0</div>
+      <div class="metric-label">Upsell Revenue</div>
+    </div>
+    <div class="metric-card">
+      <div id="mStoreRevenue" class="metric-value">₹0</div>
+      <div class="metric-label">Store Revenue</div>
+    </div>
+  </div>
+
+  <!-- Tabs Bar -->
+  <div style="display: flex; gap: 4px; border-bottom: 1px solid var(--zinc-800); margin-bottom: 20px;">
+    <button class="tab-btn active" data-tab="inventory">Catalog & Inventory</button>
+    <button class="tab-btn" data-tab="upsell">AI Upsell Engine</button>
+    <button class="tab-btn" data-tab="campaigns">Campaign Orchestrator</button>
+    <button class="tab-btn" data-tab="csv">CSV Upload</button>
+  </div>
+
+  <!-- Tab 1: Inventory -->
+  <div id="tab-inventory" class="tab-content card" style="padding: 0; overflow: hidden;">
+    <table class="table-clean">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Inventory</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="inventoryTableBody">
+        <tr><td colspan="5" style="text-align: center; color: var(--zinc-500);">Loading products...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Tab 2: AI Upsell -->
+  <div id="tab-upsell" class="tab-content" style="display: none;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+      <div class="card" style="padding: 20px;">
+        <h2 style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Simulate Checkout Cart</h2>
+        <p style="font-size: 11px; color: var(--zinc-500); margin-bottom: 14px;">Add items to test Merchant Agent Python recommendations</p>
+
+        <div id="availableItemsToCart" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;"></div>
+
+        <div id="simulatedCartContainer" style="border-top: var(--border-default); padding-top: 12px; margin-top: 12px; display: none;">
+          <div style="font-size: 11px; font-weight: 500; color: var(--zinc-500); margin-bottom: 8px;">In Cart</div>
+          <div id="simulatedCartItems"></div>
+          <button id="analyzeCartBtn" class="btn btn-primary w-full mt-3">Analyze Cart & Generate Upsells</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 20px;">
+        <h2 style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Upsell Recommendations</h2>
+        <p style="font-size: 11px; color: var(--zinc-500); margin-bottom: 14px;">Gemini Python Agent suggestions</p>
+        <div id="upsellResultsList">
+          <div style="text-align: center; padding: 40px 0; color: var(--zinc-600); font-size: 12px;">Build a cart and click "Analyze Cart" to test AI upsells.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Campaigns -->
+  <div id="tab-campaigns" class="tab-content card" style="display: none; padding: 20px; max-width: 700px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Campaign Orchestrator</h2>
+    <p style="font-size: 12px; color: var(--zinc-500); margin-bottom: 16px;">Scan low-inventory stock and generate targeted Razorpay Payment Links automatically via Python.</p>
+    <button id="generateCampaignBtn" class="btn btn-primary mb-4">Auto-Generate Campaign</button>
+    <div id="campaignOutput"></div>
+  </div>
+
+  <!-- Tab 4: CSV Upload -->
+  <div id="tab-csv" class="tab-content card" style="display: none; padding: 20px; max-width: 700px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">CSV Product Upload</h2>
+    <p style="font-size: 12px; color: var(--zinc-500); margin-bottom: 16px;">Paste any product CSV. Python Gemini parser will auto-format it into store catalog schema.</p>
+    
+    <button id="loadSampleCsvBtn" class="btn btn-ghost btn-sm mb-2">Load Sample CSV</button>
+    <textarea id="csvTextArea" class="input" rows="8" placeholder="name,price,category,stock,description&#10;Product Name,999,Category,50,Description..." style="font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
+    <button id="uploadCsvBtn" class="btn btn-accent mt-3">Upload & Auto-Format via Python</button>
+    <div id="csvStatusMsg" style="margin-top: 12px;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+  .tab-btn {
+    padding: 8px 14px; font-size: 12px; font-weight: 500; cursor: pointer;
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    color: var(--zinc-500); transition: color 120ms; margin-bottom: -1px;
+  }
+  .tab-btn.active { border-bottom-color: var(--zinc-50); color: var(--zinc-50); }
+</style>
+
+<script>
+  let selectedMerchantId = 'merchant_byteforge';
+  let currentProducts = [];
+  let simulatedCart = [];
+
+  function formatPrice(paise) {
+    return '₹' + Math.floor(paise / 100).toLocaleString('en-IN');
+  }
+
+  const merchantSelect = document.getElementById('merchantSelect');
+  merchantSelect.addEventListener('change', (e) => {
+    selectedMerchantId = e.target.value;
+    loadMerchantData();
+  });
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.getAttribute('data-tab')).style.display = 'block';
+    });
+  });
+
+  async function loadMerchantData() {
+    try {
+      const res = await fetch('/api/merchants');
+      const data = await res.json();
+      const merchants = data.merchants || [];
+      const m = merchants.find(item => item.id === selectedMerchantId) || merchants[0];
+
+      document.getElementById('merchantTitle').textContent = m.name;
+      document.getElementById('merchantTagline').textContent = m.tagline;
+      document.getElementById('mProductCount').textContent = m.stats.productCount;
+      document.getElementById('mTotalOrders').textContent = m.stats.totalOrders;
+      document.getElementById('mStoreRevenue').textContent = formatPrice(m.stats.revenuePaise);
+
+      loadProducts();
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadProducts() {
+    const res = await fetch(`/api/catalog?merchant_id=${selectedMerchantId}`);
+    const data = await res.json();
+    currentProducts = data.products || [];
+
+    const tbody = document.getElementById('inventoryTableBody');
+    tbody.innerHTML = currentProducts.map(p => `
+      <tr>
+        <td style="font-weight: 500;">${p.name}</td>
+        <td style="color: var(--zinc-500);">${p.category}</td>
+        <td style="font-weight: 600; color: var(--zinc-300);">${formatPrice(p.price)}</td>
+        <td style="font-family: var(--font-mono);">${p.inventory}</td>
+        <td>
+          <span class="badge ${p.inventory <= 15 ? 'badge-failed' : p.inventory <= 25 ? 'badge-blocked' : 'badge-success'}">
+            ${p.inventory <= 15 ? 'LOW' : p.inventory <= 25 ? 'MEDIUM' : 'IN STOCK'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    renderCartSimulation();
+  }
+
+  function renderCartSimulation() {
+    const container = document.getElementById('availableItemsToCart');
+    container.innerHTML = currentProducts.map(p => `
+      <div onclick="addToSimulatedCart('${p.id}')" style="padding: 6px 10px; background: var(--bg-input); border-radius: 4px; border: var(--border-default); cursor: pointer; display: flex; justify-content: space-between; font-size: 12px;">
+        <span>${p.name}</span>
+        <span style="color: var(--zinc-400);">${formatPrice(p.price)}</span>
+      </div>
+    `).join('');
+  }
+
+  window.addToSimulatedCart = function(pid) {
+    const p = currentProducts.find(item => item.id === pid);
+    if (!p) return;
+    simulatedCart.push({ product: p, quantity: 1 });
+    document.getElementById('simulatedCartContainer').style.display = 'block';
+    
+    const cartItems = document.getElementById('simulatedCartItems');
+    cartItems.innerHTML = simulatedCart.map(item => `
+      <div style="display: flex; justify-space-between; padding: 6px 10px; background: var(--bg-input); border-radius: 4px; margin-bottom: 4px; font-size: 12px;">
+        <span>${item.product.name}</span>
+        <span style="font-weight: 600;">${formatPrice(item.product.price)}</span>
+      </div>
+    `).join('');
+  };
+
+  document.getElementById('analyzeCartBtn')?.addEventListener('click', async () => {
+    const res = await fetch('/api/merchant-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'upsell', merchantId: selectedMerchantId, cart: simulatedCart })
+    });
+    const data = await res.json();
+    const suggestions = data.suggestions || [];
+    
+    const list = document.getElementById('upsellResultsList');
+    if (suggestions.length === 0) {
+      list.innerHTML = '<div style="text-align: center; color: var(--zinc-500); padding: 20px;">No upsells generated.</div>';
+      return;
+    }
+
+    list.innerHTML = suggestions.map(s => `
+      <div style="padding: 14px; background: var(--bg-input); border-radius: 8px; border: var(--border-default); margin-bottom: 10px;">
+        <div class="flex items-center justify-between mb-2">
+          <span class="badge badge-amber">${s.type}</span>
+          <span style="font-size: 12px; font-weight: 600; color: var(--status-success);">+${formatPrice(s.potentialRevenuePaise)}</span>
+        </div>
+        ${s.products.map(p => `<div style="font-size: 12px; font-weight: 500;">${p.name} — ${formatPrice(p.price)}</div>`).join('')}
+        <p style="font-size: 11px; color: var(--zinc-500); font-style: italic; margin-top: 6px;">"${s.reasoning}"</p>
+      </div>
+    `).join('');
+  });
+
+  document.getElementById('generateCampaignBtn')?.addEventListener('click', async () => {
+    const res = await fetch('/api/merchant-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'campaign', merchantId: selectedMerchantId })
+    });
+    const data = await res.json();
+    const camp = data.campaign;
+
+    const linkRes = await fetch('/api/payment-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        merchantId: selectedMerchantId, amount: 1099900,
+        description: camp.description, campaignName: camp.name, targetAudience: camp.targetAudience
+      })
+    });
+    const linkData = await linkRes.json();
+
+    document.getElementById('campaignOutput').innerHTML = `
+      <div style="padding: 16px; background: var(--bg-input); border-radius: 8px; border: var(--border-default);">
+        <span class="badge badge-success" style="margin-bottom: 8px; display: inline-flex;">CAMPAIGN ACTIVE</span>
+        <h3 style="font-size: 16px; font-weight: 600; color: var(--zinc-50);">${camp.name}</h3>
+        <p style="font-size: 12px; color: var(--zinc-500); margin: 6px 0 12px;">${camp.description}</p>
+        <div style="padding: 10px; background: var(--zinc-900); border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-family: var(--font-mono); font-size: 12px; color: #3b82f6;">${linkData.link?.short_url || 'https://rzp.io/l/plink_demo'}</span>
+          <a href="${linkData.link?.short_url}" target="_blank" class="btn btn-sm btn-secondary">Open Link &rarr;</a>
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById('loadSampleCsvBtn')?.addEventListener('click', () => {
+    document.getElementById('csvTextArea').value = `name,price,category,stock,description
+Wireless Earbuds,2499,Earbuds,100,Bluetooth 5.3 earbuds with ANC
+Neckband Pro,1299,Neckband,80,Magnetic neckband with 24hr battery
+DAC Amplifier,4999,Accessories,30,Portable USB-C DAC/AMP combo`;
+  });
+
+  document.getElementById('uploadCsvBtn')?.addEventListener('click', async () => {
+    const csvText = document.getElementById('csvTextArea').value.trim();
+    if (!csvText) return;
+
+    const res = await fetch('/api/csv-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csvText, merchantId: selectedMerchantId })
+    });
+    const data = await res.json();
+    document.getElementById('csvStatusMsg').innerHTML = `
+      <div style="padding: 10px; border-radius: 6px; font-size: 12px; background: rgba(34,197,94,0.08); color: var(--status-success); border: 1px solid rgba(34,197,94,0.2);">
+        Successfully imported ${data.imported} products into ${data.merchantName} catalog via Python backend!
+      </div>
+    `;
+    loadMerchantData();
+  });
+
+  loadMerchantData();
+</script>
+{% endblock %}

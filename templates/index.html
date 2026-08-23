@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}ARIA — Portal Launchpad{% endblock %}
+
+{% block content %}
+<header style="text-align: center; padding: 60px 24px 30px;">
+
+
+  <h1 style="font-size: 42px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; color: var(--zinc-50);">
+    ARIA
+  </h1>
+  <p style="font-size: 14px; color: var(--zinc-400); margin-top: 8px; max-width: 480px; margin: 8px auto 0;">
+    Autonomous Revenue Intelligence Agent — 100% Python FastAPI Backend + SQLite + Gemini 3.6 Flash
+  </p>
+
+  <div style="display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-family: var(--font-mono); background: var(--zinc-900); border: 1px solid var(--zinc-800); color: var(--status-success);">
+    <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--status-success);"></span>
+    aria.db connected &middot; {{ audit_total }} audit entries logged
+  </div>
+</header>
+
+<!-- Portal Cards -->
+<section style="max-width: 900px; margin: 0 auto; padding: 0 24px 40px;">
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+    <a href="/merchant" class="card" style="padding: 24px 20px; text-decoration: none; display: block; transition: all 200ms ease;">
+      <div style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; background: rgba(16,185,129,0.12); color: #10b981; margin-bottom: 12px;">SELL</div>
+      <h3 style="font-size: 16px; font-weight: 600; color: var(--zinc-50); margin-bottom: 6px;">Merchant OS</h3>
+      <p style="font-size: 12px; color: var(--zinc-500); line-height: 1.5;">Store management, AI upsell engine, campaign orchestration, CSV upload</p>
+      <div style="margin-top: 16px; font-size: 12px; font-weight: 500; color: var(--zinc-400);">Open Store &rarr;</div>
+    </a>
+
+    <a href="/buyer" class="card" style="padding: 24px 20px; text-decoration: none; display: block; transition: all 200ms ease;">
+      <div style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; background: rgba(59,130,246,0.12); color: #3b82f6; margin-bottom: 12px;">BUY</div>
+      <h3 style="font-size: 16px; font-weight: 600; color: var(--zinc-50); margin-bottom: 6px;">AI Buyer</h3>
+      <p style="font-size: 12px; color: var(--zinc-500); line-height: 1.5;">Conversational AI agent that discovers and purchases across 5 merchants</p>
+      <div style="margin-top: 16px; font-size: 12px; font-weight: 500; color: var(--zinc-400);">Start Shopping &rarr;</div>
+    </a>
+
+    <a href="/audit" class="card" style="padding: 24px 20px; text-decoration: none; display: block; transition: all 200ms ease;">
+      <div style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; background: rgba(245,158,11,0.12); color: #f59e0b; margin-bottom: 12px;">AUDIT</div>
+      <h3 style="font-size: 16px; font-weight: 600; color: var(--zinc-50); margin-bottom: 6px;">Audit Trail</h3>
+      <p style="font-size: 12px; color: var(--zinc-500); line-height: 1.5;">Cross-merchant explainability, budget bounds, Razorpay transaction refs</p>
+      <div style="margin-top: 16px; font-size: 12px; font-weight: 500; color: var(--zinc-400);">View Logs &rarr;</div>
+    </a>
+  </div>
+</section>
+
+<!-- Merchant Network Grid -->
+<section style="max-width: 900px; margin: 0 auto; padding: 0 24px 48px;">
+  <div style="font-size: 11px; font-weight: 500; color: var(--zinc-500); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px;">
+    5-Store Merchant Network
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
+    {% for m in merchants %}
+    <div class="card" style="padding: 14px;">
+      <div class="flex items-center gap-2" style="margin-bottom: 10px;">
+        <div style="width: 26px; height: 26px; border-radius: 6px; background: {{ m.color }}20; color: {{ m.color }}; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono);">
+          {{ m.logo }}
+        </div>
+        <div>
+          <div style="font-size: 12px; font-weight: 600; color: var(--zinc-50);">{{ m.name }}</div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+        <div>
+          <div style="font-size: 14px; font-weight: 700; color: var(--zinc-50);">{{ m.stats.productCount }}</div>
+          <div style="font-size: 9px; color: var(--zinc-600); text-transform: uppercase;">Products</div>
+        </div>
+        <div>
+          <div style="font-size: 14px; font-weight: 700; color: var(--zinc-50);">{{ m.stats.totalOrders }}</div>
+          <div style="font-size: 9px; color: var(--zinc-600); text-transform: uppercase;">Orders</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<footer style="text-align: center; padding: 24px; border-top: 1px solid var(--zinc-800); color: var(--zinc-600); font-size: 11px; font-family: var(--font-mono);">
+  <span>100% Python FastAPI</span> &middot; <span>Razorpay Test Mode SDK</span> &middot; <span>Gemini 3.6 Flash</span> &middot; <span>SQLite</span>
+</footer>
+{% endblock %}

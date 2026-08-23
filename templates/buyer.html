@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}ARIA — AI Buyer Chatbot{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--bg-base);">
+  <!-- Top Header Bar -->
+  <div class="page-header"
+    style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: var(--border-default); background: var(--bg-surface);">
+    <div>
+      <div
+        style="font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber-500); margin-bottom: 2px;">
+        AI Buyer
+      </div>
+      <h1 style="font-size: 18px; font-weight: 700; color: var(--zinc-50); margin: 0;">Autonomous Buyer Agent</h1>
+      <p style="color: var(--zinc-400); font-size: 11px; margin: 2px 0 0;">
+        Multi-merchant purchasing via Python FastAPI &amp; Gemini AI
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div style="text-align: right;">
+        <div
+          style="font-size: 9px; color: var(--zinc-500); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px;">
+          Budget Limit
+        </div>
+        <div id="budgetDisplay"
+          style="font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: var(--zinc-50);">
+          ₹2,00,000
+        </div>
+      </div>
+      <input type="range" id="budgetRange" min="1000000" max="100000000" step="1000000" value="20000000"
+        style="width: 110px; accent-color: var(--amber-500); cursor: pointer;">
+      <button id="resetCartBtn" class="btn btn-secondary btn-sm"
+        style="font-size: 11px; padding: 5px 12px; font-weight: 600;">Reset Session</button>
+    </div>
+  </div>
+
+  <!-- Main Chat + Sidebar Container -->
+  <div style="flex: 1; display: flex; overflow: hidden; min-height: 0;">
+    <!-- Left Chat Area -->
+    <div
+      style="flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; background: var(--bg-base);">
+      <!-- Scrollable Messages Area -->
+      <div id="chatMessages" class="chat-messages"
+        style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div class="chat-bubble chat-bubble-ai">
+          Hi! I'm ARIA — your AI shopping assistant. I can discover and purchase products across 5 merchants (ByteForge,
+          HomeChef Co., DeskCraft, GlowLab, SonicWave). Tell me what you're looking for!
+        </div>
+      </div>
+
+      <!-- Bottom Fixed Input Bar -->
+      <div class="chat-input-bar"
+        style="flex: 0 0 auto; display: flex; gap: 10px; padding: 14px 20px; border-top: var(--border-default); background: var(--bg-surface);">
+        <input type="text" id="chatInput"
+          placeholder="Type what you want to buy (e.g. 'i want a mechanical keyboard')..." class="input"
+          style="flex: 1; background: var(--bg-input); color: var(--zinc-50); border: 1px solid var(--zinc-700); padding: 10px 14px; border-radius: 6px; font-size: 13px;">
+        <button id="sendBtn" class="btn btn-accent"
+          style="padding: 10px 22px; font-weight: 700; font-size: 13px; background: var(--amber-500); color: #000; border: none; border-radius: 6px; cursor: pointer;">Send</button>
+      </div>
+    </div>
+
+    <!-- Right Sidebar (Cart & Prompts) -->
+    <div
+      style="width: 280px; min-width: 280px; border-left: var(--border-default); background: var(--bg-surface); padding: 16px; display: flex; flex-direction: column; overflow-y: auto;">
+      <div
+        style="font-size: 10px; font-weight: 700; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">
+        Cart (<span id="cartCount">0</span> items)
+      </div>
+
+      <div id="cartItemsList" class="flex flex-col gap-2" style="flex: 1; min-height: 80px;">
+        <div style="font-size: 12px; color: var(--zinc-500); text-align: center; padding: 24px 0;">
+          No items yet. Start chatting to discover products.
+        </div>
+      </div>
+
+      <!-- Budget Progress Gauge -->
+      <div style="border-top: var(--border-default); padding-top: 14px; margin-top: 14px;">
+        <div class="flex justify-between" style="font-size: 12px; font-weight: 600;">
+          <span style="color: var(--zinc-300);">Total Spent</span>
+          <span id="totalSpentText" style="color: var(--zinc-50);">₹0</span>
+        </div>
+        <div class="flex justify-between" style="font-size: 11px; color: var(--zinc-400); margin-top: 4px;">
+          <span>Remaining</span>
+          <span id="remainingBudgetText" style="color: var(--zinc-300);">₹2,00,000</span>
+        </div>
+        <div style="margin-top: 8px; height: 6px; background: var(--zinc-800); border-radius: 3px; overflow: hidden;">
+          <div id="budgetBar"
+            style="height: 100%; width: 0%; background: var(--amber-500); transition: width 300ms ease;"></div>
+        </div>
+      </div>
+
+      <!-- Quick Sample Prompts -->
+      <div style="margin-top: 20px;">
+        <div
+          style="font-size: 10px; font-weight: 700; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+          Quick Test Prompts
+        </div>
+        <button class="prompt-btn" data-text="buy me a smartphone with exceptional camera and processor" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; color: var(--amber-400); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
+          📱 "smartphone with exceptional camera &amp; processor"
+        </button>
+        <button class="prompt-btn" data-text="i want an NVIDIA RTX GPU for AI rendering" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-300); background: var(--zinc-800); border: 1px solid var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
+          🎮 "NVIDIA RTX GPU for AI rendering"
+        </button>
+        <button class="prompt-btn" data-text="i need a Marshall bluetooth speaker and Bose soundbar" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-300); background: var(--zinc-800); border: 1px solid var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
+          🔊 "Marshall speaker &amp; Bose soundbar"
+        </button>
+        <button class="prompt-btn" data-text="i want a mechanical keyboard" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-400); background: transparent; border: 1px dashed var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
+          ⌨️ "mechanical keyboard"
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let budgetPaise = 20000000;
+  let totalSpent = 0;
+  let cart = [];
+  let isProcessing = false;
+  let previousSteps = [];
+
+  function formatPrice(paise) {
+    return '₹' + Math.floor(paise / 100).toLocaleString('en-IN');
+  }
+
+  const budgetRange = document.getElementById('budgetRange');
+  const budgetDisplay = document.getElementById('budgetDisplay');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const resetCartBtn = document.getElementById('resetCartBtn');
+
+  budgetRange.addEventListener('input', (e) => {
+    budgetPaise = Number(e.target.value);
+    budgetDisplay.textContent = formatPrice(budgetPaise);
+    updateCartUI();
+  });
+
+  resetCartBtn.addEventListener('click', () => {
+    cart = [];
+    totalSpent = 0;
+    previousSteps = [];
+    isProcessing = false;
+    updateCartUI();
+    chatMessages.innerHTML = `
+      <div class="chat-bubble chat-bubble-ai">
+        Hi! Session reset. I'm ARIA — your AI shopping assistant. Tell me what you're looking for!
+      </div>
+    `;
+  });
+
+  document.querySelectorAll('.prompt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      chatInput.value = btn.getAttribute('data-text');
+      sendMessage();
+    });
+  });
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text || isProcessing) return;
+    chatInput.value = '';
+    isProcessing = true;
+
+    // Add user bubble
+    appendBubble('user', text);
+    previousSteps.push(text);
+
+    // Add thinking bubble
+    const thinkingId = 'thinking_' + Date.now();
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.id = thinkingId;
+    thinkingDiv.className = 'chat-bubble chat-bubble-ai';
+    thinkingDiv.innerHTML = '<span style="color: var(--zinc-400); font-size: 12px;">Searching Python backend across 5 merchants...</span>';
+    chatMessages.appendChild(thinkingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    try {
+      const res = await fetch('/api/buyer-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intent: text,
+          budgetPaise: budgetPaise,
+          currentCartPaise: totalSpent,
+          previousSteps: previousSteps
+        })
+      });
+
+      const data = await res.json();
+      document.getElementById(thinkingId)?.remove();
+
+      if (data.status === 'BLOCKED') {
+        appendBubble('ai', `⚠️ Budget limit reached: ${data.message} Click 'Reset Session' above to clear cart.`);
+        return;
+      }
+
+      const products = data.selectedProducts || [];
+      let replyText = data.reasoning || "Here is what I found for you:";
+
+      const aiDiv = document.createElement('div');
+      aiDiv.className = 'chat-bubble chat-bubble-ai';
+
+      let html = `<div style="white-space: pre-wrap;">${replyText}</div>`;
+
+      if (products.length > 0) {
+        html += '<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">';
+        products.forEach(p => {
+          html += `
+            <div class="chat-product-card" style="padding: 10px; background: var(--zinc-900); border: 1px solid var(--zinc-800); border-radius: 6px;">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div style="font-weight: 600; font-size: 13px; color: var(--zinc-50);">${p.name}</div>
+                  <div style="font-size: 11px; color: var(--zinc-400);">${p.category} &middot; ${p.merchantName}</div>
+                </div>
+                <div style="text-align: right; font-weight: 700; font-size: 14px; color: var(--amber-400);">${formatPrice(p.price)}</div>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      const upsells = data.upsellProducts || [];
+      if (upsells.length > 0) {
+        html += '<div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">';
+        html += '<div style="font-size: 11px; font-weight: 700; color: var(--amber-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">💡 Merchant AI Recommendations</div>';
+        upsells.forEach(up => {
+          html += `
+            <div style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11px; color: var(--zinc-200); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div>
+                <div style="font-weight: 600; color: var(--zinc-100);">${up.name}</div>
+                <div style="font-size: 10px; color: var(--zinc-400);">${up.reasoning}</div>
+              </div>
+              <button class="upsell-btn" data-id="${up.id}" data-name="${up.name}" data-price="${up.price}" data-merchant="${up.merchantId}" data-merchant-name="${up.merchantName}" style="padding: 6px 12px; border-radius: 6px; background: var(--amber-500); color: #000; font-weight: 700; border: none; cursor: pointer; font-size: 11px; white-space: nowrap;">
+                + Add (${formatPrice(up.price)})
+              </button>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      aiDiv.innerHTML = html;
+      chatMessages.appendChild(aiDiv);
+
+      // Attach event listeners to upsell buttons
+      aiDiv.querySelectorAll('.upsell-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const name = btn.getAttribute('data-name');
+          const price = Number(btn.getAttribute('data-price'));
+          const merchantId = btn.getAttribute('data-merchant');
+          const merchantName = btn.getAttribute('data-merchant-name');
+          addUpsellToOrder(id, name, price, merchantId, merchantName, btn);
+        });
+      });
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (products.length > 0) {
+        const prodTotal = products.reduce((sum, p) => sum + p.price, 0);
+
+        // Create order via Python API
+        const orderRes = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merchantId: products[0].merchantId,
+            amount: prodTotal,
+            buyerAgentId: data.agentId,
+            productIds: products.map(p => p.id)
+          })
+        });
+
+        const orderData = await orderRes.json();
+
+        // Update local cart
+        products.forEach(p => cart.push(p));
+        totalSpent += prodTotal;
+        updateCartUI();
+
+        if (orderData.order) {
+          const receiptDiv = document.createElement('div');
+          receiptDiv.className = 'chat-bubble chat-bubble-ai';
+          receiptDiv.innerHTML = `
+            <div style="font-size: 10px; font-weight: 700; color: var(--status-success); text-transform: uppercase; margin-bottom: 4px;">ORDER COMPLETE</div>
+            <div>Order placed via Razorpay Python SDK. ${formatPrice(prodTotal)} charged.</div>
+            <div style="margin-top: 6px; padding: 6px 8px; border-radius: 4px; background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.15); font-family: var(--font-mono); font-size: 11px;">
+              Order Ref: <span style="color: var(--zinc-200);">${orderData.order.id}</span>
+            </div>
+          `;
+          chatMessages.appendChild(receiptDiv);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      }
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById(thinkingId)?.remove();
+      appendBubble('ai', 'Error: ' + err.message);
+    } finally {
+      isProcessing = false;
+    }
+  }
+
+  async function addUpsellToOrder(id, name, price, merchantId, merchantName, btnElement) {
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.textContent = 'Added ✓';
+      btnElement.style.opacity = '0.5';
+    }
+
+    const upsellProd = { id, name, price, merchantId, merchantName };
+    cart.push(upsellProd);
+    totalSpent += price;
+    updateCartUI();
+
+    try {
+      const orderRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantId: merchantId,
+          amount: price,
+          buyerAgentId: 'buyer_upsell',
+          productIds: [id]
+        })
+      });
+      const orderData = await orderRes.json();
+
+      if (orderData.order) {
+        const receiptDiv = document.createElement('div');
+        receiptDiv.className = 'chat-bubble chat-bubble-ai';
+        receiptDiv.innerHTML = `
+          <div style="font-size: 10px; font-weight: 700; color: var(--status-success); text-transform: uppercase; margin-bottom: 4px;">UPSELL ADDED &amp; ORDER COMPLETE</div>
+          <div>Added <strong>${name}</strong> (${formatPrice(price)}). Order placed via Razorpay Python SDK.</div>
+          <div style="margin-top: 6px; padding: 6px 8px; border-radius: 4px; background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.15); font-family: var(--font-mono); font-size: 11px;">
+            Order Ref: <span style="color: var(--zinc-200);">${orderData.order.id}</span>
+          </div>
+        `;
+        chatMessages.appendChild(receiptDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function appendBubble(role, text) {
+    const div = document.createElement('div');
+    div.className = `chat-bubble chat-bubble-${role}`;
+    div.textContent = text;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function updateCartUI() {
+    document.getElementById('cartCount').textContent = cart.length;
+    document.getElementById('totalSpentText').textContent = formatPrice(totalSpent);
+
+    const remaining = Math.max(0, budgetPaise - totalSpent);
+    document.getElementById('remainingBudgetText').textContent = formatPrice(remaining);
+
+    const pct = Math.min(100, (totalSpent / budgetPaise) * 100);
+    document.getElementById('budgetBar').style.width = pct + '%';
+    document.getElementById('budgetBar').style.background = pct > 85 ? 'var(--status-failed)' : 'var(--amber-500)';
+
+    const cartList = document.getElementById('cartItemsList');
+    if (cart.length === 0) {
+      cartList.innerHTML = '<div style="font-size: 12px; color: var(--zinc-500); text-align: center; padding: 24px 0;">No items yet. Start chatting to discover products.</div>';
+    } else {
+      cartList.innerHTML = cart.map(p => `
+        <div style="padding: 8px 10px; background: var(--bg-input); border-radius: 6px; border: var(--border-default);">
+          <div style="font-size: 11px; font-weight: 600; color: var(--zinc-100);">${p.name}</div>
+          <div class="flex items-center justify-between" style="margin-top: 2px;">
+            <span style="font-size: 10px; color: var(--zinc-400);">${p.merchantName}</span>
+            <span style="font-size: 11px; font-weight: 700; color: var(--amber-400);">${formatPrice(p.price)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+</script>
+{% endblock %}
