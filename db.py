@@ -129,77 +129,94 @@ def seed_or_update(conn):
             (m["id"], m["name"], m["slug"], m["category"], m["tagline"], m["logo"], m["color"])
         )
 
-    # Rich Flagship Products catalog
+    # Rich Flagship Products catalog with Logical Upsell/Cross-sell linkages
     products = [
-        # ByteForge — Smartphones & GPUs
+        # ByteForge — Smartphones & GPUs & Chargers
         {
             "id": "prod_bf_phone_01",
             "merchant_id": "merchant_byteforge",
             "name": "Samsung Galaxy S24 Ultra 5G",
-            "description": "Flagship smartphone powered by Snapdragon 8 Gen 3 for Galaxy, 200MP Quad Camera with 100x Space Zoom, 6.8\" QHD+ Dynamic AMOLED 120Hz display, 12GB RAM, 512GB UFS 4.0 storage, Titanium frame, and embedded S Pen.",
+            "description": "Flagship Android productivity phone powered by Snapdragon 8 Gen 3 for Galaxy, 200MP Quad Camera with 100x Space Zoom, 6.8\" QHD+ Dynamic AMOLED 120Hz display, 12GB RAM, 512GB UFS 4.0 storage, Titanium frame, and embedded S Pen.",
             "category": "Smartphones",
             "price": 12999900,
             "original_price": 13999900,
             "inventory": 25,
             "tags": ["smartphone", "samsung", "galaxy", "camera", "processor", "snapdragon", "flagship", "5g", "android"],
-            "upsell_ids": ["prod_bf_gpu_01"],
-            "cross_sell_ids": ["prod_sw_001"],
+            "upsell_ids": ["prod_sw_headphones_01"],
+            "cross_sell_ids": ["prod_bf_charger_01"],
             "ai_specs": {
                 "processor": "Qualcomm Snapdragon 8 Gen 3 for Galaxy (4nm)",
                 "camera": "200MP Main + 50MP Periscope (5x optical) + 10MP Telephoto + 12MP Ultra-wide",
                 "display": "6.8\" QHD+ Dynamic AMOLED 2X, 120Hz Adaptive, 2600 nits peak brightness",
                 "ram": "12GB LPDDR5X",
                 "storage": "512GB UFS 4.0",
-                "battery": "5000mAh with 45W fast charge"
+                "battery": "5000mAh with 45W fast charge",
+                "key_advantage": "Best for 200MP 100x Space Zoom photography, S Pen stylus productivity, and Snapdragon 8 Gen 3 performance"
             }
         },
         {
             "id": "prod_bf_phone_02",
             "merchant_id": "merchant_byteforge",
             "name": "Apple iPhone 15 Pro Max",
-            "description": "Apple flagship powered by A17 Pro 3nm chip with 6-core GPU, 48MP Pro camera system with 5x Telephoto optical zoom lens, Super Retina XDR OLED display with ProMotion 120Hz, Natural Titanium design, and USB-C 3.0.",
+            "description": "Apple flagship powered by A17 Pro 3nm chip with 6-core GPU, 48MP Pro camera system with 5x Telephoto optical zoom lens, 4K 60fps ProRes video recording, Super Retina XDR OLED display with ProMotion 120Hz, Natural Titanium design, and USB-C 3.0.",
             "category": "Smartphones",
             "price": 15990000,
             "original_price": 16990000,
             "inventory": 18,
             "tags": ["smartphone", "apple", "iphone", "camera", "processor", "a17pro", "flagship", "ios", "5g"],
-            "upsell_ids": ["prod_bf_gpu_01"],
-            "cross_sell_ids": ["prod_sw_001"],
+            "upsell_ids": ["prod_sw_headphones_01"],
+            "cross_sell_ids": ["prod_bf_charger_01"],
             "ai_specs": {
                 "processor": "Apple A17 Pro (3nm) 6-core CPU + 6-core Neural Engine",
                 "camera": "48MP Main (sensor-shift OIS) + 12MP 5x Telephoto (120mm focal) + 12MP Ultra-wide",
                 "display": "6.7\" Super Retina XDR OLED, 120Hz ProMotion, Always-On Display",
                 "ram": "8GB Unified Memory",
                 "storage": "256GB NVMe",
-                "chassis": "Grade 5 Titanium frame with Ceramic Shield"
+                "chassis": "Grade 5 Titanium frame with Ceramic Shield",
+                "key_advantage": "Best for 4K ProRes video creation, iOS ecosystem, A17 Pro ray-tracing gaming, and 5x optical zoom"
             }
         },
         {
             "id": "prod_bf_phone_03",
             "merchant_id": "merchant_byteforge",
             "name": "OnePlus 12 5G",
-            "description": "Premium flagship powered by Snapdragon 8 Gen 3, 4th Gen Hasselblad Camera for Mobile with Sony LYT-808 sensor, 64MP periscope telephoto, 2K 120Hz ProXDR display, 100W SUPERVOOC fast charge, and Dual Cryo-velocity VC cooling.",
+            "description": "Value flagship powered by Snapdragon 8 Gen 3, 4th Gen Hasselblad Camera for Mobile with Sony LYT-808 sensor, 64MP periscope telephoto, 2K 120Hz ProXDR display, 100W SUPERVOOC fast charge (0 to 100% in 26 mins), and 5400mAh battery.",
             "category": "Smartphones",
             "price": 6999900,
             "original_price": 7499900,
             "inventory": 40,
             "tags": ["smartphone", "oneplus", "camera", "processor", "hasselblad", "snapdragon", "fast-charge", "5g"],
             "upsell_ids": ["prod_bf_phone_01"],
-            "cross_sell_ids": ["prod_bf_001"],
+            "cross_sell_ids": ["prod_bf_charger_01"],
             "ai_specs": {
                 "processor": "Qualcomm Snapdragon 8 Gen 3 (4nm)",
                 "camera": "50MP Sony LYT-808 OIS + 64MP 3x Periscope + 48MP Ultra-wide (Hasselblad tuned)",
                 "display": "6.82\" 2K+ LTPO 4.0 AMOLED, 1-120Hz, 4500 nits peak",
                 "ram": "16GB LPDDR5X",
                 "storage": "512GB UFS 4.0",
-                "battery": "5400mAh with 100W SUPERVOOC & 50W AIRVOOC"
+                "battery": "5400mAh with 100W SUPERVOOC & 50W AIRVOOC",
+                "key_advantage": "Best value flagship under ₹70k with ultra-fast 100W charging, 16GB RAM, and Hasselblad color tuning"
             }
+        },
+        {
+            "id": "prod_bf_charger_01",
+            "merchant_id": "merchant_byteforge",
+            "name": "Anker 100W GaN Fast Charger & Powerbank",
+            "description": "Multi-device 100W GaN fast charger with 10,000mAh magnetic powerbank, dual USB-C PD 3.0 ports, compact foldable prongs, charges smartphones to 50% in 20 minutes.",
+            "category": "Accessories",
+            "price": 399900,
+            "original_price": 499900,
+            "inventory": 80,
+            "tags": ["charger", "powerbank", "anker", "fast-charge", "usb-c", "magsafe", "accessory"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_bf_phone_01"],
+            "ai_specs": {"power": "100W GaN Fast Charge", "capacity": "10,000mAh Magnetic Powerbank"}
         },
         {
             "id": "prod_bf_gpu_01",
             "merchant_id": "merchant_byteforge",
             "name": "NVIDIA GeForce RTX 4090 24GB",
-            "description": "Ultimate gaming & AI GPU powered by NVIDIA Ada Lovelace architecture, 16,384 CUDA cores, 24GB GDDR6X VRAM, 4th Gen Tensor cores, DLSS 3.5 frame generation, and 8K ray tracing rendering engine.",
+            "description": "Ultimate flagship GPU powered by NVIDIA Ada Lovelace architecture, 16,384 CUDA cores, 24GB GDDR6X VRAM, 4th Gen Tensor cores, DLSS 3.5 frame generation, and 8K ray tracing rendering engine for AI & 4K gaming.",
             "category": "Graphics Cards",
             "price": 18999900,
             "original_price": 19999900,
@@ -212,8 +229,7 @@ def seed_or_update(conn):
                 "cuda_cores": "16,384",
                 "vram": "24GB GDDR6X (384-bit bus)",
                 "boost_clock": "2520 MHz",
-                "dlss": "DLSS 3.5 with Frame Generation & Ray Reconstruction",
-                "power_tdp": "450W"
+                "dlss": "DLSS 3.5 with Frame Generation & Ray Reconstruction"
             }
         },
         {
@@ -231,9 +247,7 @@ def seed_or_update(conn):
             "ai_specs": {
                 "chipset": "NVIDIA GeForce RTX 4080 Super",
                 "cuda_cores": "10,240",
-                "vram": "16GB GDDR6X (256-bit bus)",
-                "boost_clock": "2550 MHz",
-                "dlss": "DLSS 3.5 AI Super Resolution"
+                "vram": "16GB GDDR6X (256-bit bus)"
             }
         },
         {
@@ -246,12 +260,45 @@ def seed_or_update(conn):
             "original_price": 699900,
             "inventory": 38,
             "tags": ["keyboard", "mechanical", "hot-swap", "gateron"],
-            "upsell_ids": ["prod_bf_phone_03"],
-            "cross_sell_ids": ["prod_bf_gpu_02"],
+            "upsell_ids": ["prod_bf_002"],
+            "cross_sell_ids": ["prod_dc_002"],
             "ai_specs": {"switches": "Gateron Yellow", "layout": "TKL 87-key"}
+        },
+        {
+            "id": "prod_bf_002",
+            "merchant_id": "merchant_byteforge",
+            "name": "Phantom X Wireless Mouse",
+            "description": "Lightweight 58g wireless gaming mouse with PAW3395 sensor, 26K DPI, optical switches, and 80hr battery life.",
+            "category": "Mice",
+            "price": 399900,
+            "original_price": 499900,
+            "inventory": 65,
+            "tags": ["mouse", "wireless", "gaming", "lightweight"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_bf_001"],
+            "ai_specs": {"sensor": "PAW3395", "dpi": "26000", "weight": "58g"}
         },
 
         # SonicWave — Speakers & Audio
+        {
+            "id": "prod_sw_headphones_01",
+            "merchant_id": "merchant_sonicwave",
+            "name": "Sony WH-1000XM5 ANC Headphones",
+            "description": "Industry-leading Noise Canceling wireless over-ear headphones with Integrated Processor V1, HD Noise Canceling Processor QN1, 8 microphones, 30-hour battery, LDAC Hi-Res Audio, and Speak-to-Chat.",
+            "category": "Headphones",
+            "price": 2999000,
+            "original_price": 3499000,
+            "inventory": 45,
+            "tags": ["headphones", "sony", "anc", "noise-canceling", "bluetooth", "audio", "wireless"],
+            "upsell_ids": ["prod_sw_speaker_01"],
+            "cross_sell_ids": ["prod_bf_charger_01"],
+            "ai_specs": {
+                "noise_canceling": "Dual Processor V1 + QN1 with 8 microphones",
+                "driver": "30mm precision-engineered carbon fiber driver unit",
+                "battery": "30 hours (3 min charge = 3 hours playback)",
+                "codecs": "LDAC, AAC, SBC, Hi-Res Audio Wireless certified"
+            }
+        },
         {
             "id": "prod_sw_speaker_01",
             "merchant_id": "merchant_sonicwave",
@@ -267,8 +314,7 @@ def seed_or_update(conn):
             "ai_specs": {
                 "power_output": "80W Total (1x 50W Class D Woofer + 2x 15W Tweeters)",
                 "frequency_range": "45–20,000 Hz",
-                "connectivity": "Bluetooth 5.2 LE Audio, 3.5mm Aux, RCA",
-                "design": "Textured vinyl casing with vintage brass accents"
+                "connectivity": "Bluetooth 5.2 LE Audio, 3.5mm Aux, RCA"
             }
         },
         {
@@ -285,27 +331,7 @@ def seed_or_update(conn):
             "cross_sell_ids": ["prod_sw_speaker_01"],
             "ai_specs": {
                 "audio_tech": "Dolby Atmos, Voice4Video, PhaseGuide directional sound",
-                "drivers": "9 total transducers (2 up-firing dipole, 1 center tweeter, 6 full-range)",
-                "connectivity": "HDMI eARC, Optical, Wi-Fi, AirPlay 2, Spotify Connect, Bluetooth"
-            }
-        },
-        {
-            "id": "prod_sw_headphones_01",
-            "merchant_id": "merchant_sonicwave",
-            "name": "Sony WH-1000XM5 ANC Headphones",
-            "description": "Industry-leading Noise Canceling wireless over-ear headphones with Integrated Processor V1, HD Noise Canceling Processor QN1, 8 microphones, 30-hour battery, LDAC Hi-Res Audio, and Speak-to-Chat.",
-            "category": "Headphones",
-            "price": 2999000,
-            "original_price": 3499000,
-            "inventory": 45,
-            "tags": ["headphones", "sony", "anc", "noise-canceling", "bluetooth", "audio", "wireless"],
-            "upsell_ids": ["prod_sw_speaker_01"],
-            "cross_sell_ids": ["prod_sw_speaker_02"],
-            "ai_specs": {
-                "noise_canceling": "Dual Processor V1 + QN1 with 8 microphones",
-                "driver": "30mm precision-engineered carbon fiber driver unit",
-                "battery": "30 hours (3 min charge = 3 hours playback)",
-                "codecs": "LDAC, AAC, SBC, Hi-Res Audio Wireless certified"
+                "drivers": "9 total transducers (2 up-firing dipole, 1 center tweeter, 6 full-range)"
             }
         },
         {
@@ -322,12 +348,11 @@ def seed_or_update(conn):
             "cross_sell_ids": ["prod_sw_headphones_01"],
             "ai_specs": {
                 "speakers": "3-way (Subwoofer 80W + 2x Midrange 40W + 2x Tweeter 10W)",
-                "waterproof": "IP67 dust and waterproof rating",
-                "battery": "24 hours continuous playback with USB-A powerbank port"
+                "waterproof": "IP67 dust and waterproof rating"
             }
         },
 
-        # HomeChef Co. — Kitchenware & Appliances
+        # HomeChef Co. — Kitchenware
         {
             "id": "prod_hc_001",
             "merchant_id": "merchant_homechef",
@@ -368,8 +393,8 @@ def seed_or_update(conn):
             "original_price": 13999900,
             "inventory": 10,
             "tags": ["chair", "ergonomic", "herman-miller", "office", "desk"],
-            "upsell_ids": ["prod_dc_001"],
-            "cross_sell_ids": ["prod_dc_002"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_dc_001"],
             "ai_specs": {"suspension": "8Z Pellicle mesh", "support": "PostureFit SL lumbar"}
         },
         {
@@ -385,6 +410,20 @@ def seed_or_update(conn):
             "upsell_ids": ["prod_dc_chair_01"],
             "cross_sell_ids": ["prod_dc_002"],
             "ai_specs": {"motor": "Dual electric", "desktop": "60x30 inch solid bamboo"}
+        },
+        {
+            "id": "prod_dc_002",
+            "merchant_id": "merchant_deskcraft",
+            "name": "FlexiMount Gas-Spring Monitor Arm",
+            "description": "Heavy-duty gas spring single monitor arm supporting 17-34 inch displays, VESA 75/100, integrated cable management.",
+            "category": "Monitor Arms",
+            "price": 349900,
+            "original_price": 449900,
+            "inventory": 35,
+            "tags": ["monitor-arm", "gas-spring", "vesa", "ergonomic"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_dc_001"],
+            "ai_specs": {"range": "17-34 inch", "mount": "VESA 75/100"}
         },
 
         # GlowLab — Skincare

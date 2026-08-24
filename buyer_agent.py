@@ -171,13 +171,22 @@ def get_mock_buyer_reasoning(intent: str, remaining_budget: int, affordable_prod
     selected_ids = set()
     current_sum = 0
 
+    # Determine if user wants a multi-item bundle/setup or a single specific item
+    bundle_indicators = ["setup", "bundle", "routine", "combo", "kit", "pack", "multiple", "items", "products", ","]
+    is_bundle_request = any(b in intent_lower for b in bundle_indicators)
+    max_items = 3 if is_bundle_request else 1
+
     if scored_items:
+        selected_categories = set()
         for p, score in scored_items:
-            if p["id"] not in selected_ids and current_sum + p["price"] <= remaining_budget:
+            cat = p["category"]
+            # Ensure unique category per bundle and limit to 1 item for single product queries
+            if cat not in selected_categories and p["id"] not in selected_ids and current_sum + p["price"] <= remaining_budget:
                 selected_products.append(p)
                 selected_ids.add(p["id"])
+                selected_categories.add(cat)
                 current_sum += p["price"]
-                if len(selected_products) >= 2:
+                if len(selected_products) >= max_items:
                     break
     elif keywords:
         return {
