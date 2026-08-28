@@ -13,7 +13,10 @@
       Cross-merchant explainability, budget bounds, and Razorpay transaction refs (Python SQLite backend)
     </p>
   </div>
-  <button id="refreshAuditBtn" class="btn btn-secondary btn-sm">Refresh Logs</button>
+  <div style="display: flex; gap: 8px;">
+    <button id="refreshAuditBtn" class="btn btn-secondary btn-sm">Refresh Logs</button>
+    <button id="clearAuditBtn" class="btn btn-secondary btn-sm" style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); cursor: pointer;">🗑️ Clear Logs</button>
+  </div>
 </div>
 
 <div style="padding: 24px 32px;">
@@ -152,6 +155,11 @@
   }
 
   document.getElementById('refreshAuditBtn').addEventListener('click', fetchAuditLogs);
+  document.getElementById('clearAuditBtn')?.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to clear all audit logs from the database?')) return;
+    await fetch('/api/clear-audit-logs', { method: 'POST' });
+    fetchAuditLogs();
+  });
   document.getElementById('filterMerchant').addEventListener('change', fetchAuditLogs);
   document.getElementById('filterAgentType').addEventListener('change', fetchAuditLogs);
   document.getElementById('filterStatus').addEventListener('change', fetchAuditLogs);

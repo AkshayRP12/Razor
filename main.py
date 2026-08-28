@@ -1,66 +1,68 @@
 import os
+import json
 import uuid
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Query, Response, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, Form, HTTPException, Query
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from db import (
-    init_db, get_merchants, get_products, get_merchant_by_id,
-    get_orders_by_merchant, get_campaigns_by_merchant, create_order,
-    create_campaign, log_audit, get_audit_logs, get_audit_stats,
-    get_product_by_id, format_price
+    init_db, get_db, get_merchants, get_merchant_by_id,
+    get_products, get_product_by_id, insert_product, deduct_product_inventory,
+    create_order, get_orders_by_merchant, get_recent_orders,
+    create_campaign, get_campaigns_by_merchant, get_active_campaigns,
+    log_audit, get_audit_logs, get_audit_stats, format_price,
+    record_product_co_occurrences, get_top_co_purchased_products
 )
-from razorpay_service import create_razorpay_order, create_razorpay_payment_link
 from buyer_agent import run_buyer_agent_reasoning
 from merchant_agent import run_merchant_upsell_agent, generate_campaign_idea
+from razorpay_service import create_razorpay_order, create_razorpay_payment_link
 from csv_parser import parse_and_import_csv
 
-# Initialize database schema & seed data on server startup
-init_db()
-
 app = FastAPI(
-    title="ARIA — Autonomous Revenue Intelligence Agent (100% Python)",
-    description="100% Pure Python FastAPI platform servicing multi-merchant agentic commerce and Razorpay APIs.",
+    title="ARIA — Autonomous Revenue Intelligence Agent",
+# ARIA Main FastAPI Server — Bounded, Gated, Explainable Agentic Commerce (Updated) Platform (Razorpay Buildathon 2026)",
     version="2.0.0"
 )
 
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Mount static directory for CSS / JS assets
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Mount static files & Jinja2 HTML templates
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+# Templates directory for HTML pages
+templates = Jinja2Templates(directory="templates")
+
+@app.on_event("startup")
+def on_startup():
+    """Initialize database tables and seed products on app boot."""
+    init_db()
 
 # ── Pydantic Request Models ───────────────────
 
 class BuyerAgentRequest(BaseModel):
     intent: str
-    budgetPaise: int
+    budgetPaise: int = 20000000  # Default ₹2,00,000 limit
     currentCartPaise: int = 0
-    previousSteps: List[str] = []
     agentId: Optional[str] = None
+    previousSteps: List[str] = []
 
 class MerchantAgentRequest(BaseModel):
-    action: str  # 'upsell' or 'campaign'
     merchantId: str
+    action: str  # 'upsell' | 'campaign'
     cart: List[Dict[str, Any]] = []
     revenueGoal: int = 5000000
+    simulateGeminiFailure: Optional[bool] = False
+    productId: Optional[str] = None
 
 class CreateOrderRequest(BaseModel):
     merchantId: str
     amount: int
     buyerAgentId: Optional[str] = None
     productIds: List[str] = []
+    productQuantities: Optional[Dict[str, int]] = {}
+    simulateFailure: Optional[bool] = False
+    campaignId: Optional[str] = None
 
 class CreatePaymentLinkRequest(BaseModel):
     merchantId: str
@@ -69,6 +71,8 @@ class CreatePaymentLinkRequest(BaseModel):
     campaignName: Optional[str] = None
     targetAudience: Optional[str] = None
     discountPercent: Optional[int] = None
+    productId: Optional[str] = None
+    simulateFailure: Optional[bool] = False
 
 class CsvImportRequest(BaseModel):
     csvText: str
@@ -76,7 +80,7 @@ class CsvImportRequest(BaseModel):
 
 # ── HTML Template Page Routes ─────────────────
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def page_launchpad(request: Request):
     merchants = get_merchants()
     enriched = []
@@ -90,93 +94,148 @@ def page_launchpad(request: Request):
         }
         enriched.append(m_copy)
 
-    stats = get_audit_stats()
+    audit_stats = get_audit_stats()
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "active_page": "launchpad",
         "merchants": enriched,
-        "audit_total": stats["total"]
+        "auditStats": audit_stats
     })
 
-@app.get("/buyer")
+@app.get("/buyer", response_class=HTMLResponse)
 def page_buyer(request: Request):
-    return templates.TemplateResponse("buyer.html", {
-        "request": request,
-        "active_page": "buyer"
-    })
+    return templates.TemplateResponse("buyer.html", {"request": request})
 
-@app.get("/merchant")
+@app.get("/merchant", response_class=HTMLResponse)
 def page_merchant(request: Request):
     merchants = get_merchants()
     return templates.TemplateResponse("merchant.html", {
         "request": request,
-        "active_page": "merchant",
         "merchants": merchants
     })
 
-@app.get("/audit")
+@app.get("/audit", response_class=HTMLResponse)
 def page_audit(request: Request):
-    merchants = get_merchants()
+    logs = get_audit_logs(limit=100)
+    stats = get_audit_stats()
     return templates.TemplateResponse("audit.html", {
         "request": request,
-        "active_page": "audit",
-        "merchants": merchants
+        "logs": logs,
+        "stats": stats
     })
 
-@app.get("/catalog")
+@app.get("/catalog", response_class=HTMLResponse)
 def page_catalog(request: Request):
     merchants = get_merchants()
+    all_products = get_products()
     return templates.TemplateResponse("catalog.html", {
         "request": request,
-        "active_page": "catalog",
-        "merchants": merchants
+        "merchants": merchants,
+        "products": all_products
     })
 
-# ── REST API Endpoints ────────────────────────
+@app.get("/pay/{link_id}", response_class=HTMLResponse)
+def page_payment_link(request: Request, link_id: str):
+    """HTML landing page for Razorpay Payment Links generated by Campaign Orchestrator."""
+    conn = get_db()
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT * FROM campaigns WHERE id = ? OR payment_link_id = ? OR payment_link_url LIKE ? ORDER BY created_at DESC LIMIT 1",
+        (link_id, link_id, f"%{link_id}%")
+    ).fetchone()
 
-@app.get("/api/info")
-def api_info():
-    return {
-        "status": "online",
-        "service": "ARIA Python Backend",
-        "version": "2.0.0",
-        "docs": "http://localhost:8000/docs"
-    }
+    # Fallback to most recent campaign if link_id is generic ('demo') or un-matched
+    if not row:
+        row = cursor.execute("SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 1").fetchone()
+    conn.close()
+
+    campaign = dict(row) if row else None
+    merchants = get_merchants()
+    merchant = get_merchant_by_id(campaign["merchant_id"]) if (campaign and campaign.get("merchant_id")) else (merchants[0] if merchants else None)
+
+    # Find the specific product referenced in campaign name/description
+    products = get_products(merchant["id"]) if (merchant and merchant.get("id")) else get_products()
+    product = None
+    if campaign and products:
+        camp_text = f"{campaign.get('name', '')} {campaign.get('description', '')}".lower()
+        for p in products:
+            if p["name"].lower() in camp_text:
+                product = p
+                break
+    if not product and products:
+        product = products[0]
+
+    product_id = product["id"] if product else "prod_bf_001"
+    product_name = product["name"] if product else "Featured Item"
+
+    if campaign and campaign.get("amount_paise"):
+        final_amount_paise = campaign["amount_paise"]
+    elif product:
+        final_amount_paise = product["price"]
+    else:
+        final_amount_paise = 549900
+
+    discount_pct = campaign.get("discount_percent") or 15 if campaign else 0
+    if discount_pct and discount_pct < 100 and final_amount_paise:
+        original_amount_paise = int(final_amount_paise / (1 - (discount_pct / 100)))
+    elif product and product.get("price"):
+        original_amount_paise = product["price"]
+    else:
+        original_amount_paise = final_amount_paise
+
+    return templates.TemplateResponse("pay.html", {
+        "request": request,
+        "campaign": campaign,
+        "merchant": merchant,
+        "product_id": product_id,
+        "product_name": product_name,
+        "original_amount_paise": original_amount_paise,
+        "original_price_formatted": format_price(original_amount_paise),
+        "final_amount_paise": final_amount_paise,
+        "final_price_formatted": format_price(final_amount_paise)
+    })
+
+@app.post("/api/clear-audit-logs")
+def clear_audit_logs_endpoint():
+    """POST /api/clear-audit-logs — Clear all entries from audit_logs table."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM audit_logs")
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "All audit logs cleared successfully."}
 
 @app.get("/api/merchants")
-def list_merchants():
-    """GET /api/merchants — List all 5 merchants with revenue & stock statistics."""
+def get_merchants_api():
+    """GET /api/merchants — Return all merchants with order & revenue stats for Merchant OS."""
     merchants = get_merchants()
     enriched = []
     for m in merchants:
         orders = get_orders_by_merchant(m["id"])
-        campaigns = get_campaigns_by_merchant(m["id"])
         products = get_products(m["id"])
-        revenue = sum(o["amount_paise"] for o in orders if o["status"] in ["created", "paid"])
-        low_stock = len([p for p in products if p["inventory"] <= 20])
-        
+        total_rev = sum(o["amount_paise"] for o in orders)
         m_copy = dict(m)
         m_copy["stats"] = {
             "productCount": len(products),
             "totalOrders": len(orders),
-            "activeCampaigns": len([c for c in campaigns if c["status"] == "ACTIVE"]),
-            "revenuePaise": revenue,
-            "lowStock": low_stock
+            "revenuePaise": total_rev
         }
         enriched.append(m_copy)
     return {"merchants": enriched}
 
+@app.get("/api/audit")
+def get_audit_api(merchantId: Optional[str] = None, agentType: Optional[str] = None, status: Optional[str] = None, limit: int = 100):
+    """GET /api/audit — Return audit log entries and platform metrics for Audit Explorer UI."""
+    logs = get_audit_logs(merchant_id=merchantId, agent_type=agentType, status=status, limit=limit)
+    stats = get_audit_stats(merchant_id=merchantId)
+    return {
+        "entries": logs,
+        "stats": stats
+    }
+
 @app.get("/api/catalog")
-def open_catalog(response: Response, merchant_id: Optional[str] = Query(None)):
-    """GET /api/catalog — Open x402 Agent Catalog Standard with protocol headers."""
-    products = get_products(merchant_id)
-    
-    # Emit x402 Agent Headers
-    response.headers["X-Agent-Readable"] = "true"
-    response.headers["X-Catalog-Schema"] = "aria/v2"
-    response.headers["X-Payment-Required"] = "razorpay"
-    response.headers["X-ACP-Compatible"] = "true"
-    
+def get_catalog_api(merchant_id: Optional[str] = None):
+    """ACP / x402 Open Catalog Standard API endpoint."""
+    products = get_products(merchant_id=merchant_id)
     formatted = []
     for p in products:
         m = get_merchant_by_id(p["merchant_id"])
@@ -215,23 +274,27 @@ def buyer_agent_step(req: BuyerAgentRequest):
     """POST /api/buyer-agent — Run one step of AI Buyer Agent reasoning loop."""
     agent_id = req.agentId or f"buyer_{uuid.uuid4().hex[:8]}"
 
+    # Scenario 1.1 / 1.3 — Initial Budget Limit Check
     if req.currentCartPaise >= req.budgetPaise:
+        breach = req.currentCartPaise - req.budgetPaise
+        breach_text = f"by {format_price(breach)}" if breach > 0 else "budget bound reached"
         log_audit(
             agent_id=agent_id,
             agent_type="BUYER",
-            action_type="PURCHASE_BLOCKED",
+            action_type="budget_check_failed",
             status="BLOCKED",
             bound=f"budget_limit={format_price(req.budgetPaise)}",
-            reasoning=f"Budget limit of {format_price(req.budgetPaise)} reached. Agent stopping autonomously.",
-            amount_paise=req.currentCartPaise
+            reasoning=f"Cart total of {format_price(req.currentCartPaise)} exceeds budget limit of {format_price(req.budgetPaise)} {breach_text}.",
+            amount_paise=req.currentCartPaise,
+            payload={"cartTotal": req.currentCartPaise, "budgetLimit": req.budgetPaise, "breachAmount": breach, "outcome": "blocked"}
         )
         return {
             "agentId": agent_id,
             "status": "BLOCKED",
-            "reason": "budget_exhausted",
-            "message": f"Budget limit of {format_price(req.budgetPaise)} reached.",
+            "reason": "budget_check_failed",
+            "message": f"This order totals {format_price(req.currentCartPaise)}, which exceeds your {format_price(req.budgetPaise)} budget limit by {format_price(breach)}.",
             "selectedProductIds": [],
-            "reasoning": f"Budget limit of {format_price(req.budgetPaise)} reached. Stopping.",
+            "reasoning": f"This order totals {format_price(req.currentCartPaise)}, which exceeds your {format_price(req.budgetPaise)} budget limit by {format_price(breach)}. Please remove an item or reduce quantity.",
             "shouldStop": True,
             "auditBound": f"budget_limit={format_price(req.budgetPaise)}"
         }
@@ -253,13 +316,80 @@ def buyer_agent_step(req: BuyerAgentRequest):
         previous_steps=req.previousSteps
     )
 
+    # Handle explicit actionType (budget_check_failed, stock_check_failed, ambiguous_intent, stock_shortfall_clarify, shortfall_cancelled)
+    act_type = result.get("actionType")
+    if act_type in ("budget_check_failed", "stock_check_failed", "ambiguous_intent", "stock_shortfall_clarify", "shortfall_cancelled"):
+        is_blocked = act_type in ("budget_check_failed", "stock_check_failed", "shortfall_cancelled")
+        log_audit(
+            agent_id=agent_id,
+            agent_type="BUYER",
+            action_type=act_type,
+            status="BLOCKED" if is_blocked else "INFO",
+            bound="stock_inventory" if "stock" in act_type or "shortfall" in act_type else f"budget_limit={format_price(req.budgetPaise)}",
+            reasoning=result.get("reasoning"),
+            amount_paise=result.get("cartTotalPaise", req.currentCartPaise),
+            payload={"cartTotal": result.get("cartTotalPaise", 0), "budgetLimit": req.budgetPaise, "breachAmount": result.get("breachPaise", 0), "outcome": "blocked" if is_blocked else "clarifying"}
+        )
+        return {
+            "agentId": agent_id,
+            "status": "BLOCKED" if is_blocked else "SHOPPING",
+            "reason": act_type,
+            "actionType": act_type,
+            "selectedProductIds": [],
+            "productQuantities": {},
+            "selectedProducts": [],
+            "reasoning": result.get("reasoning"),
+            "shouldStop": result.get("shouldStop", is_blocked),
+            "auditBound": "stock_inventory" if "stock" in act_type or "shortfall" in act_type else f"budget_limit={format_price(req.budgetPaise)}"
+        }
+
     selected_ids = result.get("selectedProductIds", [])
+    product_quantities = result.get("productQuantities", {})
     selected_products = [get_product_by_id(pid) for pid in selected_ids if get_product_by_id(pid)]
 
-    # Enrich selected products
+    # Scenario 2.1 — Live Stock-Out Check Mid-Purchase
+    for pid in selected_ids:
+        db_prod = get_product_by_id(pid)
+        req_qty = product_quantities.get(pid, 1)
+        if not db_prod or db_prod["inventory"] <= 0 or db_prod["inventory"] < req_qty:
+            merchant_prods = get_products(db_prod["merchant_id"] if db_prod else None)
+            alt = [p for p in merchant_prods if p["inventory"] > 0 and p["id"] != pid]
+            alt_msg = f" We recommend checking **{alt[0]['name']}** from {alt[0].get('merchantName', 'the store')} which is currently in stock." if alt else ""
+            
+            sold_out_reasoning = f"This item ({db_prod['name'] if db_prod else pid}) just sold out before we could complete your order.{alt_msg}"
+            
+            log_audit(
+                agent_id=agent_id,
+                agent_type="BUYER",
+                action_type="stock_check_failed",
+                status="BLOCKED",
+                merchant_id=db_prod["merchant_id"] if db_prod else None,
+                bound="stock_inventory",
+                reasoning=sold_out_reasoning,
+                amount_paise=0,
+                payload={"productId": pid, "requestedQty": req_qty, "availableQty": db_prod["inventory"] if db_prod else 0, "outcome": "blocked"}
+            )
+            return {
+                "agentId": agent_id,
+                "status": "BLOCKED",
+                "reason": "stock_check_failed",
+                "message": sold_out_reasoning,
+                "selectedProductIds": [],
+                "productQuantities": {},
+                "selectedProducts": [],
+                "reasoning": sold_out_reasoning,
+                "shouldStop": True,
+                "auditBound": "stock_inventory"
+            }
+
+    total_spent_step = 0
     enriched = []
     for p in selected_products:
         m = get_merchant_by_id(p["merchant_id"])
+        qty = product_quantities.get(p["id"], 1)
+        item_total = p["price"] * qty
+        total_spent_step += item_total
+        
         enriched.append({
             "id": p["id"],
             "merchantId": p["merchant_id"],
@@ -267,6 +397,8 @@ def buyer_agent_step(req: BuyerAgentRequest):
             "description": p["description"],
             "category": p["category"],
             "price": p["price"],
+            "quantity": qty,
+            "totalPrice": item_total,
             "originalPrice": p["original_price"],
             "inventory": p["inventory"],
             "tags": p["tags"],
@@ -277,15 +409,17 @@ def buyer_agent_step(req: BuyerAgentRequest):
 
     for p in selected_products:
         m = get_merchant_by_id(p["merchant_id"])
+        qty = product_quantities.get(p["id"], 1)
+        item_total = p["price"] * qty
         log_audit(
             agent_id=agent_id,
             agent_type="BUYER",
             action_type="PRODUCT_EVALUATE",
             status="SUCCESS",
             merchant_id=p["merchant_id"],
-            reasoning=f"Adding {p['name']} ({format_price(p['price'])}) from {m['name'] if m else p['merchant_id']} to cart.",
-            amount_paise=p["price"],
-            payload={"productId": p["id"], "merchantId": p["merchant_id"]}
+            reasoning=f"Adding {qty}x {p['name']} ({format_price(item_total)}) from {m['name'] if m else p['merchant_id']} to cart.",
+            amount_paise=item_total,
+            payload={"productId": p["id"], "merchantId": p["merchant_id"], "quantity": qty}
         )
 
     return {
@@ -293,11 +427,12 @@ def buyer_agent_step(req: BuyerAgentRequest):
         "status": "COMPLETE" if result.get("shouldStop") else "SHOPPING",
         "thoughts": result.get("thoughts", ""),
         "selectedProductIds": selected_ids,
+        "productQuantities": product_quantities,
         "selectedProducts": enriched,
         "upsellProducts": result.get("upsellProducts", []),
         "reasoning": result.get("reasoning", ""),
         "shouldStop": result.get("shouldStop", False),
-        "budgetRemaining": req.budgetPaise - req.currentCartPaise - sum(p["price"] for p in selected_products),
+        "budgetRemaining": req.budgetPaise - req.currentCartPaise - total_spent_step,
         "auditBound": f"budget_limit={format_price(req.budgetPaise)}"
     }
 
@@ -305,46 +440,188 @@ def buyer_agent_step(req: BuyerAgentRequest):
 def merchant_agent_action(req: MerchantAgentRequest):
     """POST /api/merchant-agent — Run Merchant Agent upsell or campaign strategy."""
     if req.action == "upsell":
-        suggestions = run_merchant_upsell_agent(req.cart, req.merchantId)
-        log_audit(
+        suggestions = run_merchant_upsell_agent(
+            cart=req.cart,
             merchant_id=req.merchantId,
-            agent_id=f"merchant_agent_{req.merchantId}",
-            agent_type="MERCHANT",
-            action_type="UPSELL_TRIGGER",
-            status="SUCCESS",
-            reasoning=f"Generated {len(suggestions)} upsell recommendations in Python backend."
+            simulate_gemini_failure=req.simulateGeminiFailure or False
         )
         return {"merchantId": req.merchantId, "suggestions": suggestions}
+
     elif req.action == "campaign":
-        campaign = generate_campaign_idea(req.merchantId, req.revenueGoal)
+        # Check if product is out of stock
+        if req.productId:
+            prod = get_product_by_id(req.productId)
+            if prod and prod.get("inventory", 0) <= 0:
+                log_audit(
+                    merchant_id=req.merchantId,
+                    agent_id=f"merchant_orchestrator_{req.merchantId}",
+                    agent_type="MERCHANT",
+                    action_type="CAMPAIGN_BLOCKED",
+                    status="BLOCKED",
+                    reasoning=f"Campaign creation blocked: product '{prod['name']}' is out of stock (inventory=0). Campaigns cannot be created for out-of-stock items.",
+                    payload={"productId": req.productId, "outcome": "blocked_out_of_stock"}
+                )
+                return JSONResponse(status_code=400, content={
+                    "error": "CAMPAIGN_BLOCKED",
+                    "reason": "out_of_stock",
+                    "message": f"Product '{prod['name']}' is out of stock (inventory=0). Campaigns cannot be created for out-of-stock items."
+                })
+
+        campaign = generate_campaign_idea(req.merchantId, req.revenueGoal, product_id=req.productId)
+
         log_audit(
             merchant_id=req.merchantId,
             agent_id=f"merchant_orchestrator_{req.merchantId}",
             agent_type="MERCHANT",
             action_type="CAMPAIGN_CREATE",
             status="SUCCESS",
-            reasoning=f"Orchestrated campaign: \"{campaign['name']}\" in Python backend."
+            reasoning=f"Orchestrated campaign: \"{campaign['name']}\" (discount: {campaign['discountPercent']}%).",
+            payload={"merchantId": req.merchantId, "campaign": campaign}
         )
         return {"merchantId": req.merchantId, "campaign": campaign}
     else:
         raise HTTPException(status_code=400, detail="Invalid action type")
 
+@app.get("/api/merchant-analytics")
+def get_merchant_analytics(merchant_id: Optional[str] = Query(None)):
+    """
+    GET /api/merchant-analytics — Real SQL Aggregations computed live from aria.db.
+    No fake numbers, no LLM-generated narrative statistics.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    m_filter = "AND merchant_id = ?" if merchant_id and merchant_id != "ALL" else ""
+    m_where = "WHERE merchant_id = ?" if merchant_id and merchant_id != "ALL" else ""
+    params = [merchant_id] if merchant_id and merchant_id != "ALL" else []
+
+    # 1. Total Completed Orders
+    sql_total_orders = f"SELECT COUNT(*) FROM orders WHERE status IN ('created', 'completed') {m_filter}"
+    total_orders = cursor.execute(sql_total_orders, params).fetchone()[0]
+
+    # 2. Total Revenue (all orders)
+    sql_total_rev = f"SELECT COALESCE(SUM(amount_paise), 0) FROM orders WHERE status IN ('created', 'completed') {m_filter}"
+    total_rev_paise = cursor.execute(sql_total_rev, params).fetchone()[0]
+
+    # 3. Number of Upsell Orders
+    sql_upsell_orders = f"SELECT COUNT(*) FROM orders WHERE (buyer_agent_id = 'buyer_upsell' OR buyer_agent_id LIKE '%upsell%') AND status IN ('created', 'completed') {m_filter}"
+    upsell_orders = cursor.execute(sql_upsell_orders, params).fetchone()[0]
+
+    # 4. Total Upsell Revenue
+    sql_upsell_rev = f"SELECT COALESCE(SUM(amount_paise), 0) FROM orders WHERE (buyer_agent_id = 'buyer_upsell' OR buyer_agent_id LIKE '%upsell%') AND status IN ('created', 'completed') {m_filter}"
+    upsell_rev_paise = cursor.execute(sql_upsell_rev, params).fetchone()[0]
+
+    # 5. Upsell Attach Rate (%)
+    attach_rate_pct = round((upsell_orders / total_orders * 100.0), 1) if total_orders > 0 else 0.0
+
+    # 6. Campaigns Created
+    sql_campaign_count = f"SELECT COUNT(*) FROM campaigns {m_where}"
+    campaign_count = cursor.execute(sql_campaign_count, params).fetchone()[0]
+
+    # 7. Total Discount Value Offered Across Campaigns
+    sql_discount_val = f"SELECT COALESCE(SUM((amount_paise * COALESCE(discount_percent, 0)) / 100), 0) FROM campaigns {m_where}"
+    total_discount_paise = cursor.execute(sql_discount_val, params).fetchone()[0]
+
+    # 8. Campaign Conversions & Campaign Revenue (Fix 3 & Category 6)
+    sql_campaign_conversions = f"SELECT COALESCE(SUM(conversions), 0) FROM campaigns {m_where}"
+    campaign_conversions = cursor.execute(sql_campaign_conversions, params).fetchone()[0]
+
+    sql_campaign_rev = f"SELECT COALESCE(SUM(amount_paise), 0) FROM orders WHERE campaign_id IS NOT NULL AND status IN ('created', 'completed') {m_filter}"
+    campaign_rev_paise = cursor.execute(sql_campaign_rev, params).fetchone()[0]
+
+    conn.close()
+
+    return {
+        "merchantId": merchant_id or "ALL",
+        "totalOrders": total_orders,
+        "totalRevenuePaise": total_rev_paise,
+        "totalRevenueFormatted": format_price(total_rev_paise),
+        "upsellOrders": upsell_orders,
+        "upsellRevenuePaise": upsell_rev_paise,
+        "upsellRevenueFormatted": format_price(upsell_rev_paise),
+        "upsellAttachRatePct": attach_rate_pct,
+        "campaignsCreated": campaign_count,
+        "campaignConversions": campaign_conversions,
+        "campaignRevenuePaise": campaign_rev_paise,
+        "campaignRevenueFormatted": format_price(campaign_rev_paise),
+        "totalDiscountOfferedPaise": total_discount_paise,
+        "totalDiscountOfferedFormatted": format_price(total_discount_paise),
+        "datasource": "aria.db live SQL aggregation",
+        "queries": {
+            "total_orders": sql_total_orders,
+            "total_revenue": sql_total_rev,
+            "upsell_orders": sql_upsell_orders,
+            "upsell_revenue": sql_upsell_rev,
+            "campaigns_created": sql_campaign_count,
+            "campaign_conversions": sql_campaign_conversions,
+            "campaign_revenue": sql_campaign_rev,
+            "total_discount_offered": sql_discount_val
+        }
+    }
+
 @app.post("/api/orders")
 def create_order_endpoint(req: CreateOrderRequest):
     """POST /api/orders — Create Razorpay order in test mode & log audit entry."""
-    rzp_order = create_razorpay_order(
-        amount_paise=req.amount,
-        receipt=f"rcpt_{uuid.uuid4().hex[:8]}",
-        notes={"merchantId": req.merchantId, "agentId": req.buyerAgentId or "buyer_agent"}
-    )
+    print("DEBUG create_order_endpoint req:", req.dict())
+    simulate_fail = req.simulateFailure or os.getenv("SIMULATE_RAZORPAY_FAILURE", "false").lower() in ("true", "1", "yes")
+
+    # Scenario 2.2 — Razorpay API Error / Timeout Handling
+    try:
+        rzp_order = create_razorpay_order(
+            amount_paise=req.amount,
+            receipt=f"rcpt_{uuid.uuid4().hex[:8]}",
+            notes={"merchantId": req.merchantId, "agentId": req.buyerAgentId or "buyer_agent"},
+            simulate_failure=simulate_fail
+        )
+    except Exception as e:
+        error_msg = "Payment could not be confirmed due to a gateway timeout — no charge was made. You can retry or contact support."
+        log_audit(
+            merchant_id=req.merchantId,
+            agent_id=req.buyerAgentId or "buyer_agent",
+            agent_type="BUYER",
+            action_type="payment_api_error",
+            status="FAILED",
+            reasoning=error_msg,
+            amount_paise=req.amount,
+            payload={"error": str(e), "outcome": "blocked_no_charge"}
+        )
+        return JSONResponse(status_code=400, content={
+            "error": "payment_api_error",
+            "message": error_msg,
+            "status": "payment_unconfirmed",
+            "outcome": "blocked_no_charge"
+        })
+
+    order_items = []
+    for pid in req.productIds:
+        prod = get_product_by_id(pid)
+        qty = req.productQuantities.get(pid, 1) if req.productQuantities else 1
+        if prod:
+            order_items.append({
+                "id": pid,
+                "name": prod["name"],
+                "price": prod["price"],
+                "quantity": qty
+            })
 
     db_order = create_order(
         merchant_id=req.merchantId,
         amount_paise=req.amount,
         razorpay_order_id=rzp_order["id"],
         buyer_agent_id=req.buyerAgentId,
-        receipt=rzp_order.get("receipt")
+        receipt=rzp_order.get("receipt"),
+        items_json=json.dumps(order_items),
+        campaign_id=req.campaignId
     )
+
+    # Deduct stock inventory for purchased products in SQLite DB using actual purchased quantities
+    for pid in req.productIds:
+        qty = req.productQuantities.get(pid, 1) if req.productQuantities else 1
+        deduct_product_inventory(pid, qty)
+
+    # PART A: Automatically record co-occurrence statistics for completed orders containing multiple products
+    if len(req.productIds) > 1:
+        record_product_co_occurrences(req.merchantId, req.productIds)
 
     log_audit(
         merchant_id=req.merchantId,
@@ -363,98 +640,182 @@ def create_order_endpoint(req: CreateOrderRequest):
 @app.post("/api/payment-links")
 def create_payment_link_endpoint(req: CreatePaymentLinkRequest):
     """POST /api/payment-links — Create Razorpay Payment Link for campaigns."""
-    rzp_link = create_razorpay_payment_link(
-        amount_paise=req.amount,
-        description=req.description,
-        notes={"merchantId": req.merchantId, "campaignName": req.campaignName or "Campaign"}
-    )
 
+    # Scenario 4.4 — Out-of-Stock Check before campaign creation
+    if req.productId:
+        prod = get_product_by_id(req.productId)
+        if prod and prod.get("inventory", 0) <= 0:
+            log_audit(
+                merchant_id=req.merchantId,
+                agent_id=f"merchant_orchestrator_{req.merchantId}",
+                agent_type="MERCHANT",
+                action_type="CAMPAIGN_BLOCKED",
+                status="BLOCKED",
+                reasoning=f"Campaign creation blocked for product '{prod['name']}': out of stock (inventory=0).",
+                payload={"productId": req.productId, "outcome": "blocked_out_of_stock"}
+            )
+            return JSONResponse(status_code=400, content={
+                "error": "CAMPAIGN_BLOCKED",
+                "message": f"Product '{prod['name']}' is out of stock (inventory=0). Campaigns cannot be created for out-of-stock items.",
+                "reason": "out_of_stock"
+            })
+
+    # Scenario 4.6 — Duplicate Active Campaign Prevention
+    existing = get_campaigns_by_merchant(req.merchantId)
+    campaign_name = req.campaignName or "Campaign Link"
+    for c in existing:
+        if c.get("status") == "ACTIVE" and (c.get("name") == campaign_name or (req.productId and req.productId in (c.get("description") or ""))):
+            log_audit(
+                merchant_id=req.merchantId,
+                agent_id=f"merchant_orchestrator_{req.merchantId}",
+                agent_type="MERCHANT",
+                action_type="CAMPAIGN_BLOCKED",
+                status="BLOCKED",
+                reasoning=f"Campaign creation blocked: an active campaign for '{campaign_name}' already exists for merchant '{req.merchantId}'.",
+                payload={"campaignName": campaign_name, "outcome": "duplicate_prevented"}
+            )
+            return JSONResponse(status_code=400, content={
+                "error": "CAMPAIGN_BLOCKED",
+                "message": f"An active campaign for '{campaign_name}' already exists.",
+                "reason": "duplicate_active_campaign"
+            })
+
+    # Scenario 4.5 — Discount Cap Enforcement (Max 30%)
+    discount_pct = req.discountPercent
+    if discount_pct and discount_pct > 30:
+        discount_pct = 30
+        log_audit(
+            merchant_id=req.merchantId,
+            agent_id=f"merchant_orchestrator_{req.merchantId}",
+            agent_type="MERCHANT",
+            action_type="CAMPAIGN_DISCOUNT_CAPPED",
+            status="INFO",
+            reasoning=f"Requested discount of {req.discountPercent}% exceeded max cap (30%). Capped at 30%.",
+            payload={"requestedDiscount": req.discountPercent, "cappedDiscount": 30}
+        )
+
+    # Scenario 4.7 — Razorpay Payment Link Failure Simulation / Error Handling
+    simulate_fail = req.simulateFailure or os.getenv("SIMULATE_RAZORPAY_FAILURE", "false").lower() in ("true", "1", "yes")
+    try:
+        rzp_link = create_razorpay_payment_link(
+            amount_paise=req.amount,
+            description=req.description,
+            notes={"merchantId": req.merchantId, "campaignName": campaign_name},
+            simulate_failure=simulate_fail
+        )
+    except Exception as e:
+        error_msg = f"Razorpay Payment Link API creation failed: {str(e)}"
+        log_audit(
+            merchant_id=req.merchantId,
+            agent_id=f"merchant_orchestrator_{req.merchantId}",
+            agent_type="MERCHANT",
+            action_type="campaign_payment_link_error",
+            status="FAILED",
+            reasoning=error_msg,
+            amount_paise=req.amount,
+            payload={"error": str(e), "outcome": "link_creation_failed"}
+        )
+        return JSONResponse(status_code=400, content={
+            "error": "campaign_payment_link_error",
+            "message": "Payment link creation failed — no campaign created.",
+            "status": "link_creation_failed"
+        })
+
+    local_payment_url = f"http://localhost:8000/pay/{rzp_link['id']}"
     db_campaign = create_campaign(
         merchant_id=req.merchantId,
-        name=req.campaignName or "Campaign Link",
+        name=campaign_name,
         description=req.description,
         amount_paise=req.amount,
         target_audience=req.targetAudience or "Customers",
-        discount_percent=req.discountPercent,
+        discount_percent=discount_pct,
         payment_link_id=rzp_link["id"],
-        payment_link_url=rzp_link.get("short_url")
+        payment_link_url=local_payment_url
     )
 
     log_audit(
         merchant_id=req.merchantId,
-        agent_id=f"merchant_{req.merchantId}",
+        agent_id=f"merchant_orchestrator_{req.merchantId}",
         agent_type="MERCHANT",
-        action_type="CAMPAIGN_ACTIVATED",
+        action_type="CAMPAIGN_CREATED",
         status="SUCCESS",
         razorpay_ref=rzp_link["id"],
         amount_paise=req.amount,
-        reasoning=f"Razorpay payment link activated: {rzp_link.get('short_url')} via Python backend."
+        reasoning=f"Razorpay Payment Link generated: {local_payment_url} for campaign \"{campaign_name}\" (discount: {discount_pct or 0}%).",
+        payload={"campaignId": db_campaign["id"], "paymentLinkId": rzp_link["id"], "shortUrl": local_payment_url}
     )
 
-    return {"link": rzp_link, "campaign": db_campaign}
+    return {"campaign": db_campaign, "paymentLink": rzp_link}
 
 @app.post("/api/csv-import")
 def csv_import_endpoint(req: CsvImportRequest):
-    """POST /api/csv-import — Import CSV product catalog into merchant store."""
-    res = parse_and_import_csv(req.csvText, req.merchantId)
-    return res
+    """POST /api/csv-import — Import merchant CSV catalog via AI parser with row validation."""
+    merchant = get_merchant_by_id(req.merchantId)
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant store not found")
 
-@app.get("/api/audit")
-def audit_endpoint(
-    merchantId: Optional[str] = Query(None),
-    agentType: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    limit: int = Query(100)
-):
-    """GET /api/audit — Query cross-merchant compliance logs & platform statistics."""
-    entries = get_audit_logs(merchant_id=merchantId, agent_type=agentType, status=status, limit=limit)
-    stats = get_audit_stats(merchant_id=merchantId)
-    return {
-        "entries": entries,
-        "total": stats["total"],
-        "stats": stats
-    }
+    try:
+        result = parse_and_import_csv(req.csvText, req.merchantId)
+        if result.get("error"):
+            return JSONResponse(status_code=400, content=result)
+        return result
+    except Exception as e:
+        error_msg = f"CSV import error: {str(e)}"
+        log_audit(
+            agent_id="csv_import_python",
+            agent_type="MERCHANT",
+            action_type="csv_import_error",
+            status="FAILED",
+            merchant_id=req.merchantId,
+            reasoning=error_msg
+        )
+        return JSONResponse(status_code=400, content={
+            "error": True,
+            "message": "This file could not be read as a CSV — please check the format and try again.",
+            "imported": 0,
+            "rejected": 0,
+            "total": 0
+        })
 
-@app.post("/api/webhooks")
-def razorpay_webhook_endpoint(payload: Dict[str, Any]):
-    """POST /api/webhooks — Razorpay webhook event handler."""
-    event = payload.get("event", "unknown")
-    log_audit(
-        agent_id="razorpay_webhook",
-        agent_type="BUYER",
-        action_type="WEBHOOK_RECEIVED",
-        status="INFO",
-        reasoning=f"Webhook received: {event}",
-        payload={"event": event}
+@app.get("/api/buyer-history")
+def buyer_history_endpoint(limit: int = 50):
+    """GET /api/buyer-history — Returns recent completed buyer orders with product details and formatted prices."""
+    orders = get_recent_orders(limit=limit)
+    formatted = []
+    for o in orders:
+        formatted.append({
+            "id": o["id"],
+            "razorpayOrderId": o.get("razorpay_order_id"),
+            "merchantId": o["merchant_id"],
+            "merchantName": o.get("merchant_name", "Merchant Store"),
+            "totalAmountPaise": o["total_amount_paise"],
+            "totalAmountFormatted": format_price(o["total_amount_paise"]),
+            "status": o["status"],
+            "createdAt": o["created_at"],
+            "items": o.get("items", [])
+        })
+    return {"orders": formatted}
+
+@app.get("/api/download-sample-csv")
+def download_sample_csv_endpoint():
+    """GET /api/download-sample-csv — Downloads a valid sample catalog CSV template."""
+    sample_csv = (
+        "Merchant Store,Product Name,Price (INR),Stock Inventory,Category,Description\n"
+        "ByteForge,AeroDesk Pro Dual-Motor Standing Desk,27999,15,Desks,Electric sit-stand standing desk with solid bamboo desktop\n"
+        "ByteForge,Vortex Mechanical Keyboard,5499,40,Keyboards,Hot-swappable TKL mechanical gaming keyboard with Gateron switches\n"
+        "ByteForge,Phantom X Wireless Mouse,3999,65,Mice,Lightweight 58g wireless gaming mouse with 26K DPI sensor\n"
+        "GlowLab,ClearPore Salicylic Gel Face Wash,449,200,Cleansers,Salicylic acid 2% gel cleanser for acne prone and oily skin\n"
+        "GlowLab,HydraShield Gel Moisturizer,699,150,Moisturizers,Lightweight gel moisturizer with hyaluronic acid and niacinamide 5%\n"
+        "HomeChef Co.,Breville Barista Touch Espresso Machine,89999,12,Coffee,Touchscreen espresso machine with automated microfoam milk texturing\n"
+        "SonicWave,Sony WH-1000XM5 ANC Headphones,29999,45,Headphones,Industry-leading Noise Canceling wireless over-ear headphones\n"
+    )
+    return Response(
+        content=sample_csv,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sample_catalog_template.csv"}
     )
 
-    if event == "payment.captured":
-        payment = payload.get("payload", {}).get("payment", {}).get("entity", {})
-        if payment:
-            log_audit(
-                agent_id="razorpay_webhook",
-                agent_type="BUYER",
-                action_type="PAYMENT_CAPTURE",
-                status="SUCCESS",
-                reasoning=f"Payment captured: {payment.get('id')}. Amount: {payment.get('amount')}. Method: {payment.get('method')}.",
-                razorpay_ref=payment.get("id"),
-                amount_paise=payment.get("amount"),
-                payload={"orderId": payment.get("order_id"), "method": payment.get("method")}
-            )
-    elif event == "payment.failed":
-        payment = payload.get("payload", {}).get("payment", {}).get("entity", {})
-        log_audit(
-            agent_id="razorpay_webhook",
-            agent_type="BUYER",
-            action_type="PAYMENT_FAILED",
-            status="FAILED",
-            reasoning=f"Payment failed: {payment.get('id')}. Error: {payment.get('error_description', 'unknown')}.",
-            razorpay_ref=payment.get("id"),
-            amount_paise=payment.get("amount")
-        )
-
-    return {"received": True, "event": event}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

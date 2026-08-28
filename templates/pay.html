@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Razorpay Payment Link — {{ campaign.name if campaign else 'Checkout' }}{% endblock %}
+
+{% block content %}
+<div style="min-height: 100vh; background: var(--bg-base); display: flex; align-items: center; justify-content: center; padding: 24px;">
+  <div style="max-width: 480px; width: 100%; background: var(--bg-surface); border: var(--border-default); border-radius: 12px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+    
+    <!-- Razorpay & Merchant Header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: var(--border-default);">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 18px;">💳</span>
+        <span style="font-weight: 700; font-size: 15px; color: var(--zinc-50);">Razorpay Checkout</span>
+      </div>
+      <span class="badge badge-success" style="font-size: 10px; font-weight: 700; text-transform: uppercase;">TEST MODE</span>
+    </div>
+
+    <!-- Store Info -->
+    <div style="margin-bottom: 20px;">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--amber-500); letter-spacing: 0.08em; margin-bottom: 4px;">
+        Merchant: {{ merchant.name if merchant else 'Razorpay Store' }}
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: var(--zinc-50); margin: 0 0 6px;">{{ campaign.name if campaign else 'Special Offer' }}</h2>
+      <p style="font-size: 13px; color: var(--zinc-400); margin: 0;">{{ campaign.description if campaign else 'Exclusive promotional item checkout.' }}</p>
+    <!-- Product Item Banner -->
+    <div style="padding: 12px 14px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+      <span style="font-size: 11px; color: var(--zinc-400); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Promotional Item</span>
+      <span style="font-size: 13px; font-weight: 700; color: #60a5fa;">📦 {{ product_name }}</span>
+    </div>
+
+    <!-- Pricing Card -->
+    <div style="background: var(--bg-input); border: 1px solid var(--zinc-700); border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <span style="font-size: 12px; color: var(--zinc-400);">Target Audience</span>
+        <span class="badge badge-blue" style="font-size: 11px;">{{ campaign.target_audience if campaign else 'Valued Customers' }}</span>
+      </div>
+
+      {% if campaign and campaign.discount_percent %}
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <span style="font-size: 12px; color: var(--zinc-400);">Campaign Discount</span>
+        <span style="font-size: 12px; font-weight: 700; color: var(--status-success);">{{ campaign.discount_percent }}% OFF</span>
+      </div>
+      {% endif %}
+
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; border-top: var(--border-default); padding-top: 12px; margin-top: 12px;">
+        <div>
+          <div style="font-size: 10px; text-transform: uppercase; color: var(--zinc-500); font-weight: 600;">Total Payable</div>
+          {% if campaign and campaign.discount_percent %}
+          <div style="font-size: 12px; text-decoration: line-through; color: var(--zinc-500);">{{ original_price_formatted }}</div>
+          {% endif %}
+        </div>
+        <div style="font-size: 24px; font-weight: 800; font-family: var(--font-mono); color: var(--amber-500);">
+          {{ final_price_formatted }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Button -->
+    <button id="payNowBtn" class="btn btn-accent" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; background: var(--amber-500); color: #000; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <span>Pay {{ final_price_formatted }} via Razorpay</span>
+      <span>&rarr;</span>
+    </button>
+
+    <!-- Confirmation Modal / Status -->
+    <div id="paymentResult" style="margin-top: 16px; display: none;"></div>
+
+    <div style="margin-top: 20px; text-align: center; font-size: 11px; color: var(--zinc-500);">
+      🔒 Secured by Razorpay Payment Gateway (Test Mode)
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('payNowBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('payNowBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>Processing Payment...</span>';
+
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        merchantId: '{{ campaign.merchant_id if campaign else "merchant_byteforge" }}',
+        amount: {{ final_amount_paise }},
+        buyerAgentId: 'buyer_campaign_link',
+        productIds: ['{{ product_id }}'],
+        campaignId: '{{ campaign.id if campaign else "" }}'
+      })
+    });
+
+    const data = await res.json();
+    const resultDiv = document.getElementById('paymentResult');
+    resultDiv.style.display = 'block';
+
+    if (res.ok) {
+      resultDiv.innerHTML = `
+        <div style="padding: 16px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 8px; color: #4ade80; font-size: 13px;">
+          <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">🎉 Payment Successful!</div>
+          <div>Razorpay Order ID: <strong style="font-family: var(--font-mono);">${data.order.id}</strong></div>
+          <div style="font-size: 11px; color: var(--zinc-400); margin-top: 6px;">Transaction confirmed in test mode &amp; logged to audit trail.</div>
+        </div>
+      `;
+      btn.style.display = 'none';
+    } else {
+      resultDiv.innerHTML = `
+        <div style="padding: 16px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; color: #f87171; font-size: 13px;">
+          <div style="font-weight: 700;">Payment Failed</div>
+          <div>${data.message || 'Could not process order.'}</div>
+        </div>
+      `;
+      btn.disabled = false;
+      btn.innerHTML = '<span>Retry Payment</span>';
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Payment processing error: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span>Retry Payment</span>';
+  }
+});
+</script>
+{% endblock %}

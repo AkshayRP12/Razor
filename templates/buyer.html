@@ -30,6 +30,10 @@
       </div>
       <input type="range" id="budgetRange" min="1000000" max="100000000" step="1000000" value="20000000"
         style="width: 110px; accent-color: var(--amber-500); cursor: pointer;">
+      <button id="viewHistoryBtn" class="btn btn-secondary btn-sm"
+        style="font-size: 11px; padding: 5px 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; background: var(--zinc-800); border: 1px solid var(--zinc-700); color: var(--zinc-200); cursor: pointer; border-radius: 4px;">
+        📋 Order History
+      </button>
       <button id="resetCartBtn" class="btn btn-secondary btn-sm"
         style="font-size: 11px; padding: 5px 12px; font-weight: 600;">Reset Session</button>
     </div>
@@ -199,8 +203,8 @@
       const data = await res.json();
       document.getElementById(thinkingId)?.remove();
 
-      if (data.status === 'BLOCKED') {
-        appendBubble('ai', `⚠️ Budget limit reached: ${data.message} Click 'Reset Session' above to clear cart.`);
+      if (data.status === 'BLOCKED' && data.reason !== 'stock_shortfall_clarify' && data.actionType !== 'stock_shortfall_clarify') {
+        appendBubble('ai', `⚠️ Budget limit reached: ${data.message || data.reasoning} Click 'Reset Session' above to clear cart.`);
         return;
       }
 
@@ -212,17 +216,39 @@
 
       let html = `<div style="white-space: pre-wrap;">${replyText}</div>`;
 
+      // Render interactive Yes / No action buttons for inventory shortfall clarification
+      if (data.reason === 'stock_shortfall_clarify' || data.actionType === 'stock_shortfall_clarify') {
+        html += `
+          <div style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="shortfall-btn confirm-yes" style="padding: 8px 16px; border-radius: 6px; background: #22c55e; color: #000; font-weight: 700; border: none; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              ✓ Yes, Proceed with Remaining Stock
+            </button>
+            <button class="shortfall-btn confirm-no" style="padding: 8px 16px; border-radius: 6px; background: var(--zinc-800); color: var(--zinc-300); font-weight: 600; border: 1px solid var(--zinc-700); cursor: pointer; font-size: 12px;">
+              ✕ No, Cancel Request
+            </button>
+          </div>
+        `;
+      }
+
       if (products.length > 0) {
         html += '<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">';
         products.forEach(p => {
+          const itemQty = p.quantity || 1;
+          const itemTotal = p.totalPrice || (p.price * itemQty);
+          const qtyBadge = itemQty > 1 ? `<span style="display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(245,158,11,0.2); color: var(--amber-400); font-weight: 700; font-size: 11px;">${itemQty}x</span>` : '';
+          const unitPriceText = itemQty > 1 ? `<div style="font-size: 10px; color: var(--zinc-400);">${formatPrice(p.price)} each</div>` : '';
+          
           html += `
-            <div class="chat-product-card" style="padding: 10px; background: var(--zinc-900); border: 1px solid var(--zinc-800); border-radius: 6px;">
+            <div style="padding: 10px; border-radius: 8px; background: var(--zinc-900); border: 1px solid var(--zinc-800); margin-bottom: 8px;">
               <div class="flex items-center justify-between">
                 <div>
-                  <div style="font-weight: 600; font-size: 13px; color: var(--zinc-50);">${p.name}</div>
+                  <div style="font-weight: 600; font-size: 13px; color: var(--zinc-50);">${p.name} ${qtyBadge}</div>
                   <div style="font-size: 11px; color: var(--zinc-400);">${p.category} &middot; ${p.merchantName}</div>
                 </div>
-                <div style="text-align: right; font-weight: 700; font-size: 14px; color: var(--amber-400);">${formatPrice(p.price)}</div>
+                <div style="text-align: right;">
+                  <div style="font-weight: 700; font-size: 14px; color: var(--amber-400);">${formatPrice(itemTotal)}</div>
+                  ${unitPriceText}
+                </div>
               </div>
             </div>
           `;
@@ -253,6 +279,19 @@
       aiDiv.innerHTML = html;
       chatMessages.appendChild(aiDiv);
 
+      // Attach event listeners to shortfall buttons
+      aiDiv.querySelectorAll('.shortfall-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          aiDiv.querySelectorAll('.shortfall-btn').forEach(b => b.disabled = true);
+          if (btn.classList.contains('confirm-yes')) {
+            chatInput.value = 'Yes';
+          } else {
+            chatInput.value = 'No';
+          }
+          sendMessage();
+        });
+      });
+
       // Attach event listeners to upsell buttons
       aiDiv.querySelectorAll('.upsell-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -268,7 +307,12 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
 
       if (products.length > 0) {
-        const prodTotal = products.reduce((sum, p) => sum + p.price, 0);
+        const prodTotal = products.reduce((sum, p) => sum + (p.totalPrice || (p.price * (p.quantity || 1))), 0);
+
+        const productQuantities = {};
+        products.forEach(p => {
+          productQuantities[p.id] = p.quantity || 1;
+        });
 
         // Create order via Python API
         const orderRes = await fetch('/api/orders', {
@@ -278,7 +322,8 @@
             merchantId: products[0].merchantId,
             amount: prodTotal,
             buyerAgentId: data.agentId,
-            productIds: products.map(p => p.id)
+            productIds: products.map(p => p.id),
+            productQuantities: productQuantities
           })
         });
 
@@ -390,5 +435,74 @@
       `).join('');
     }
   }
+</script>
+
+<!-- Order History Modal -->
+<div id="historyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+  <div style="background: var(--zinc-900); border: 1px solid var(--zinc-800); width: 620px; max-width: 90vw; max-height: 85vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--zinc-800); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface);">
+      <div>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--zinc-50); margin: 0;">📋 Buyer Purchase History</h3>
+        <p style="font-size: 11px; color: var(--zinc-400); margin: 2px 0 0;">All completed orders verified by Razorpay SDK &amp; logged to SQLite audit_logs</p>
+      </div>
+      <button id="closeHistoryBtn" style="background: none; border: none; color: var(--zinc-400); font-size: 20px; cursor: pointer; padding: 4px 8px;">&times;</button>
+    </div>
+    <div id="historyListContent" style="padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;">
+      <div style="text-align: center; color: var(--zinc-500); padding: 30px 0; font-size: 13px;">Loading purchase history...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function fetchBuyerHistory() {
+    const listEl = document.getElementById('historyListContent');
+    try {
+      const res = await fetch('/api/buyer-history');
+      const data = await res.json();
+      const orders = data.orders || [];
+      if (orders.length === 0) {
+        listEl.innerHTML = '<div style="text-align: center; color: var(--zinc-500); padding: 40px 0; font-size: 13px;">No completed orders yet. Use the chat agent to place your first order!</div>';
+        return;
+      }
+      let html = '';
+      orders.forEach(o => {
+        const rzpRef = o.razorpayOrderId ? `<span style="font-family: var(--font-mono); color: var(--amber-400); background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px; font-size: 11px;">${o.razorpayOrderId}</span>` : '';
+        const dateStr = new Date(o.createdAt).toLocaleString();
+        let itemsHtml = '';
+        (o.items || []).forEach(it => {
+          itemsHtml += `<div style="font-size: 12px; color: var(--zinc-300); padding: 2px 0;">&bull; ${it.name || 'Product'} (x${it.quantity || 1}) &mdash; <span style="color: var(--amber-400);">${formatPrice((it.price || 0) * (it.quantity || 1))}</span></div>`;
+        });
+
+        html += `
+          <div style="background: var(--bg-surface); border: 1px solid var(--zinc-800); border-radius: 8px; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: var(--zinc-100);">${o.merchantName}</div>
+                <div style="font-size: 10px; color: var(--zinc-400);">${dateStr} &middot; Order ID: ${o.id.substring(0, 8)}...</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-weight: 700; font-size: 14px; color: var(--amber-400);">${o.totalAmountFormatted}</div>
+                ${rzpRef}
+              </div>
+            </div>
+            <div style="border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; padding-top: 6px;">
+              ${itemsHtml}
+            </div>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    } catch (err) {
+      listEl.innerHTML = '<div style="text-align: center; color: var(--red-400); padding: 20px;">Failed to load purchase history.</div>';
+    }
+  }
+
+  document.getElementById('viewHistoryBtn')?.addEventListener('click', () => {
+    document.getElementById('historyModal').style.display = 'flex';
+    fetchBuyerHistory();
+  });
+  document.getElementById('closeHistoryBtn')?.addEventListener('click', () => {
+    document.getElementById('historyModal').style.display = 'none';
+  });
 </script>
 {% endblock %}

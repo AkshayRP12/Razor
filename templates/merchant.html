@@ -40,6 +40,55 @@
     </div>
   </div>
 
+  <!-- Factual SQL Analytics Widget (Real aria.db Data) -->
+  <div class="card" style="padding: 20px; margin-bottom: 20px; background: rgba(18, 18, 23, 0.95); border: 1px solid var(--zinc-800);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--zinc-800);">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+          <h2 style="font-size: 14px; font-weight: 700; color: var(--zinc-50); letter-spacing: -0.01em;">Factual Transaction Revenue Analytics</h2>
+        </div>
+        <p style="font-size: 11px; color: var(--zinc-400); margin-top: 2px;">
+          Computed live via real SQL aggregations directly from <code>orders</code>, <code>campaigns</code>, and <code>audit_logs</code> in <code>aria.db</code> (Not LLM-generated).
+        </p>
+      </div>
+      <div style="font-size: 10px; font-family: var(--font-mono); padding: 4px 10px; border-radius: 4px; background: var(--zinc-900); border: 1px solid var(--zinc-700); color: var(--zinc-300);">
+        datasource: aria.db live SQL aggregation
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Total Orders</div>
+        <div id="sqlTotalOrders" style="font-size: 16px; font-weight: 700; color: var(--zinc-100); margin-top: 4px;">0</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Total Revenue</div>
+        <div id="sqlTotalRevenue" style="font-size: 16px; font-weight: 700; color: var(--zinc-100); margin-top: 4px;">₹0</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Upsell Orders</div>
+        <div id="sqlUpsellOrders" style="font-size: 16px; font-weight: 700; color: #f59e0b; margin-top: 4px;">0</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Upsell Revenue</div>
+        <div id="sqlUpsellRevenue" style="font-size: 16px; font-weight: 700; color: #10b981; margin-top: 4px;">₹0</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Attach Rate</div>
+        <div id="sqlAttachRate" style="font-size: 16px; font-weight: 700; color: #3b82f6; margin-top: 4px;">0.0%</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Campaigns</div>
+        <div id="sqlCampaignCount" style="font-size: 16px; font-weight: 700; color: var(--zinc-100); margin-top: 4px;">0</div>
+      </div>
+      <div style="padding: 12px; border-radius: 6px; background: var(--zinc-900); border: 1px solid var(--zinc-800);">
+        <div style="font-size: 10px; font-weight: 600; color: var(--zinc-500); text-transform: uppercase;">Discounts</div>
+        <div id="sqlDiscountValue" style="font-size: 16px; font-weight: 700; color: #ef4444; margin-top: 4px;">₹0</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Tabs Bar -->
   <div style="display: flex; gap: 4px; border-bottom: 1px solid var(--zinc-800); margin-bottom: 20px;">
     <button class="tab-btn active" data-tab="inventory">Catalog & Inventory</button>
@@ -105,7 +154,16 @@
     <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">CSV Product Upload</h2>
     <p style="font-size: 12px; color: var(--zinc-500); margin-bottom: 16px;">Paste any product CSV. Python Gemini parser will auto-format it into store catalog schema.</p>
     
-    <button id="loadSampleCsvBtn" class="btn btn-ghost btn-sm mb-2">Load Sample CSV</button>
+    <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+      <button id="chooseFileBtn" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 5px 12px; background: var(--zinc-800); border: 1px solid var(--zinc-700); color: var(--zinc-200); border-radius: 4px; font-weight: 600; cursor: pointer;">
+        📁 Choose CSV File...
+      </button>
+      <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+      <button id="loadSampleCsvBtn" class="btn btn-ghost btn-sm">Load Sample CSV into Textarea</button>
+      <a href="/api/download-sample-csv" download="sample_catalog_template.csv" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 5px 12px; background: var(--zinc-800); border: 1px solid var(--zinc-700); color: var(--zinc-200); border-radius: 4px; font-weight: 600;">
+        📥 Download Sample CSV Template
+      </a>
+    </div>
     <textarea id="csvTextArea" class="input" rows="8" placeholder="name,price,category,stock,description&#10;Product Name,999,Category,50,Description..." style="font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
     <button id="uploadCsvBtn" class="btn btn-accent mt-3">Upload & Auto-Format via Python</button>
     <div id="csvStatusMsg" style="margin-top: 12px;"></div>
@@ -157,9 +215,23 @@
 
       document.getElementById('merchantTitle').textContent = m.name;
       document.getElementById('merchantTagline').textContent = m.tagline;
+
+      // Fetch live SQL aggregations from aria.db via /api/merchant-analytics
+      const analyticsRes = await fetch(`/api/merchant-analytics?merchant_id=${selectedMerchantId}`);
+      const analytics = await analyticsRes.json();
+
       document.getElementById('mProductCount').textContent = m.stats.productCount;
-      document.getElementById('mTotalOrders').textContent = m.stats.totalOrders;
-      document.getElementById('mStoreRevenue').textContent = formatPrice(m.stats.revenuePaise);
+      document.getElementById('mTotalOrders').textContent = analytics.totalOrders;
+      document.getElementById('mUpsellRevenue').textContent = analytics.upsellRevenueFormatted;
+      document.getElementById('mStoreRevenue').textContent = analytics.totalRevenueFormatted;
+
+      document.getElementById('sqlTotalOrders').textContent = analytics.totalOrders;
+      document.getElementById('sqlTotalRevenue').textContent = analytics.totalRevenueFormatted;
+      document.getElementById('sqlUpsellOrders').textContent = analytics.upsellOrders;
+      document.getElementById('sqlUpsellRevenue').textContent = analytics.upsellRevenueFormatted;
+      document.getElementById('sqlAttachRate').textContent = analytics.upsellAttachRatePct + '%';
+      document.getElementById('sqlCampaignCount').textContent = analytics.campaignsCreated;
+      document.getElementById('sqlDiscountValue').textContent = analytics.totalDiscountOfferedFormatted;
 
       loadProducts();
     } catch (e) { console.error(e); }
@@ -185,6 +257,15 @@
       </tr>
     `).join('');
 
+    // Reset simulated cart & upsell results when switching merchants
+    simulatedCart = [];
+    document.getElementById('simulatedCartContainer').style.display = 'none';
+    document.getElementById('simulatedCartItems').innerHTML = '';
+    const resultsList = document.getElementById('upsellResultsList');
+    if (resultsList) {
+      resultsList.innerHTML = '<div style="text-align: center; color: var(--zinc-500); padding: 20px;">Click "Analyze Cart & Generate Upsell" to start analysis.</div>';
+    }
+
     renderCartSimulation();
   }
 
@@ -198,19 +279,38 @@
     `).join('');
   }
 
+  function renderSimulatedCartUI() {
+    const container = document.getElementById('simulatedCartContainer');
+    const cartItems = document.getElementById('simulatedCartItems');
+
+    if (simulatedCart.length === 0) {
+      container.style.display = 'none';
+      cartItems.innerHTML = '';
+      return;
+    }
+
+    container.style.display = 'block';
+    cartItems.innerHTML = simulatedCart.map((item, idx) => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: var(--bg-input); border-radius: 4px; margin-bottom: 4px; font-size: 12px; border: var(--border-default);">
+        <span style="font-weight: 500;">${item.product.name}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-weight: 600; color: var(--amber-500);">${formatPrice(item.product.price)}</span>
+          <button onclick="removeFromSimulatedCart(${idx})" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; font-size: 10px; padding: 2px 6px; cursor: pointer; font-weight: 600;" title="Remove item from cart">✕ Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
   window.addToSimulatedCart = function(pid) {
     const p = currentProducts.find(item => item.id === pid);
     if (!p) return;
     simulatedCart.push({ product: p, quantity: 1 });
-    document.getElementById('simulatedCartContainer').style.display = 'block';
-    
-    const cartItems = document.getElementById('simulatedCartItems');
-    cartItems.innerHTML = simulatedCart.map(item => `
-      <div style="display: flex; justify-space-between; padding: 6px 10px; background: var(--bg-input); border-radius: 4px; margin-bottom: 4px; font-size: 12px;">
-        <span>${item.product.name}</span>
-        <span style="font-weight: 600;">${formatPrice(item.product.price)}</span>
-      </div>
-    `).join('');
+    renderSimulatedCartUI();
+  };
+
+  window.removeFromSimulatedCart = function(index) {
+    simulatedCart.splice(index, 1);
+    renderSimulatedCartUI();
   };
 
   document.getElementById('analyzeCartBtn')?.addEventListener('click', async () => {
@@ -249,52 +349,108 @@
     const data = await res.json();
     const camp = data.campaign;
 
+    const basePrice = camp.primaryPricePaise || 44900;
+    const discountPct = camp.discountPercent || 15;
+    const campaignAmount = Math.round(basePrice * (1 - (discountPct / 100)));
+
     const linkRes = await fetch('/api/payment-links', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        merchantId: selectedMerchantId, amount: 1099900,
-        description: camp.description, campaignName: camp.name, targetAudience: camp.targetAudience
+        merchantId: selectedMerchantId,
+        amount: campaignAmount,
+        description: camp.description,
+        campaignName: camp.name,
+        targetAudience: camp.targetAudience,
+        discountPercent: discountPct
       })
     });
     const linkData = await linkRes.json();
+    const paymentUrl = linkData.campaign?.payment_link_url || linkData.paymentLink?.short_url || `http://localhost:8000/pay/${linkData.paymentLink?.id || 'demo'}`;
 
     document.getElementById('campaignOutput').innerHTML = `
       <div style="padding: 16px; background: var(--bg-input); border-radius: 8px; border: var(--border-default);">
         <span class="badge badge-success" style="margin-bottom: 8px; display: inline-flex;">CAMPAIGN ACTIVE</span>
         <h3 style="font-size: 16px; font-weight: 600; color: var(--zinc-50);">${camp.name}</h3>
         <p style="font-size: 12px; color: var(--zinc-500); margin: 6px 0 12px;">${camp.description}</p>
-        <div style="padding: 10px; background: var(--zinc-900); border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-family: var(--font-mono); font-size: 12px; color: #3b82f6;">${linkData.link?.short_url || 'https://rzp.io/l/plink_demo'}</span>
-          <a href="${linkData.link?.short_url}" target="_blank" class="btn btn-sm btn-secondary">Open Link &rarr;</a>
+        <div style="padding: 10px; background: var(--zinc-900); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: #60a5fa; word-break: break-all;">${paymentUrl}</span>
+          <a href="${paymentUrl}" target="_blank" class="btn btn-sm btn-secondary" style="white-space: nowrap;">Open Link &rarr;</a>
         </div>
       </div>
     `;
   });
 
+  const chooseFileBtn = document.getElementById('chooseFileBtn');
+  const csvFileInput = document.getElementById('csvFileInput');
+  
+  chooseFileBtn?.addEventListener('click', () => csvFileInput?.click());
+
+  csvFileInput?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      document.getElementById('csvTextArea').value = evt.target.result;
+      document.getElementById('csvStatusMsg').innerHTML = `
+        <div style="padding: 8px 12px; border-radius: 6px; font-size: 11px; background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2);">
+          Loaded <strong>${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB). Click "Upload & Auto-Format via Python" below.
+        </div>
+      `;
+    };
+    reader.readAsText(file);
+  });
+
   document.getElementById('loadSampleCsvBtn')?.addEventListener('click', () => {
-    document.getElementById('csvTextArea').value = `name,price,category,stock,description
-Wireless Earbuds,2499,Earbuds,100,Bluetooth 5.3 earbuds with ANC
-Neckband Pro,1299,Neckband,80,Magnetic neckband with 24hr battery
-DAC Amplifier,4999,Accessories,30,Portable USB-C DAC/AMP combo`;
+    document.getElementById('csvTextArea').value = `Name,Price,Inventory,Category,Description
+Wireless Earbuds,2499,100,Earbuds,Bluetooth 5.3 earbuds with ANC
+Neckband Pro,1299,80,Neckband,Magnetic neckband with 24hr battery
+DAC Amplifier,4999,30,Accessories,Portable USB-C DAC/AMP combo`;
   });
 
   document.getElementById('uploadCsvBtn')?.addEventListener('click', async () => {
     const csvText = document.getElementById('csvTextArea').value.trim();
-    if (!csvText) return;
+    if (!csvText) {
+      document.getElementById('csvStatusMsg').innerHTML = `
+        <div style="padding: 8px 12px; border-radius: 6px; font-size: 11px; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2);">
+          Please choose a CSV file or paste CSV text first.
+        </div>
+      `;
+      return;
+    }
 
-    const res = await fetch('/api/csv-import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ csvText, merchantId: selectedMerchantId })
-    });
-    const data = await res.json();
-    document.getElementById('csvStatusMsg').innerHTML = `
-      <div style="padding: 10px; border-radius: 6px; font-size: 12px; background: rgba(34,197,94,0.08); color: var(--status-success); border: 1px solid rgba(34,197,94,0.2);">
-        Successfully imported ${data.imported} products into ${data.merchantName} catalog via Python backend!
-      </div>
-    `;
-    loadMerchantData();
+    try {
+      const res = await fetch('/api/csv-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvText, merchantId: selectedMerchantId })
+      });
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        document.getElementById('csvStatusMsg').innerHTML = `
+          <div style="padding: 10px; border-radius: 6px; font-size: 12px; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.3);">
+            ⚠️ ${data.message || 'CSV upload failed. Please check the file format.'}
+          </div>
+        `;
+        return;
+      }
+
+      const mName = data.merchantName || 'store';
+      let rejectedInfo = data.rejected > 0 ? ` (${data.rejected} invalid rows skipped)` : '';
+      document.getElementById('csvStatusMsg').innerHTML = `
+        <div style="padding: 10px; border-radius: 6px; font-size: 12px; background: rgba(34,197,94,0.08); color: var(--status-success); border: 1px solid rgba(34,197,94,0.2);">
+          Successfully imported <strong>${data.imported}</strong> products into ${mName} catalog via Python backend!${rejectedInfo}
+        </div>
+      `;
+      loadMerchantData();
+    } catch (err) {
+      document.getElementById('csvStatusMsg').innerHTML = `
+        <div style="padding: 10px; border-radius: 6px; font-size: 12px; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.3);">
+          Error uploading CSV: ${err.message}
+        </div>
+      `;
+    }
   });
 
   loadMerchantData();

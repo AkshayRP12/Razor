@@ -65,11 +65,23 @@ def init_db():
             amount_paise INTEGER NOT NULL,
             currency TEXT NOT NULL DEFAULT 'INR',
             receipt TEXT,
+            items_json TEXT NOT NULL DEFAULT '[]',
             status TEXT NOT NULL DEFAULT 'created',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (merchant_id) REFERENCES merchants(id)
         )
     """)
+
+    # Migration check for items_json & campaign_id columns in existing databases
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN items_json TEXT NOT NULL DEFAULT '[]'")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN campaign_id TEXT")
+    except Exception:
+        pass
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS campaigns (
@@ -103,7 +115,26 @@ def init_db():
             razorpay_ref TEXT,
             amount_paise INTEGER,
             payload TEXT DEFAULT '{}',
-            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            source TEXT
+        )
+    """)
+
+    # Migration check for source column in existing audit_logs table
+    try:
+        cursor.execute("ALTER TABLE audit_logs ADD COLUMN source TEXT")
+    except Exception:
+        pass
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS product_pair_stats (
+            product_a_id TEXT NOT NULL,
+            product_b_id TEXT NOT NULL,
+            merchant_id TEXT NOT NULL,
+            times_bought_together INTEGER NOT NULL DEFAULT 1,
+            last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (product_a_id, product_b_id),
+            FOREIGN KEY (merchant_id) REFERENCES merchants(id)
         )
     """)
 
@@ -425,6 +456,20 @@ def seed_or_update(conn):
             "cross_sell_ids": ["prod_dc_001"],
             "ai_specs": {"range": "17-34 inch", "mount": "VESA 75/100"}
         },
+        {
+            "id": "prod_dc_pad_01",
+            "merchant_id": "merchant_deskcraft",
+            "name": "Desk Pad Pro",
+            "description": "Premium wool felt & vegan leather desk pad mat for keyboard, mouse, and desktop protection.",
+            "category": "Desk Accessories",
+            "price": 149900,
+            "original_price": 199900,
+            "inventory": 30,
+            "tags": ["deskpad", "accessories", "deskcraft", "mat"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_dc_001"],
+            "ai_specs": {"material": "Vegan Leather & Wool Felt", "size": "900x400mm"}
+        },
 
         # GlowLab — Skincare
         {
@@ -451,9 +496,23 @@ def seed_or_update(conn):
             "original_price": 59900,
             "inventory": 200,
             "tags": ["face-wash", "salicylic-acid", "cleanser", "acne", "skincare"],
-            "upsell_ids": ["prod_gl_serum_01"],
+            "upsell_ids": ["prod_gl_002"],
             "cross_sell_ids": [],
             "ai_specs": {"active": "Salicylic Acid 2%", "pH": "5.5"}
+        },
+        {
+            "id": "prod_gl_002",
+            "merchant_id": "merchant_glowlab",
+            "name": "HydraShield Gel Moisturizer",
+            "description": "Lightweight gel moisturizer with hyaluronic acid and niacinamide 5%. Formulated for 72hr hydration.",
+            "category": "Moisturizers",
+            "price": 69900,
+            "original_price": 89900,
+            "inventory": 150,
+            "tags": ["moisturizer", "hyaluronic-acid", "niacinamide", "skincare"],
+            "upsell_ids": [],
+            "cross_sell_ids": ["prod_gl_001"],
+            "ai_specs": {"actives": "Hyaluronic Acid + Niacinamide 5%", "texture": "Lightweight Gel"}
         }
     ]
 
@@ -524,36 +583,96 @@ def get_product_by_id(product_id: str) -> Optional[Dict[str, Any]]:
     return item
 
 def insert_product(merchant_id: str, name: str, description: str, category: str, price: int, inventory: int = 50, tags: List[str] = None, original_price: Optional[int] = None) -> Dict[str, Any]:
+    return upsert_product_from_csv(merchant_id, name, description, category, price, inventory, tags, original_price)
+
+def upsert_product_from_csv(merchant_id: str, name: str, description: str, category: str, price: int, inventory: int = 50, tags: List[str] = None, original_price: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Inserts a new product or updates an existing product's inventory, price, and details
+    matching by merchant_id and product name (case-insensitive).
+    """
     conn = get_db()
     cursor = conn.cursor()
-    product_id = f"prod_csv_{uuid.uuid4().hex[:8]}"
+    
+    clean_name = name.strip()
+    existing = cursor.execute("""
+        SELECT id FROM products WHERE (merchant_id = ? OR merchant_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+    """, (merchant_id, clean_name)).fetchone()
+    
     tags_json = json.dumps(tags or [])
+    desc_val = description or ""
+    cat_val = category or "General"
     
-    cursor.execute("""
-        INSERT INTO products (id, merchant_id, name, description, category, price, original_price, inventory, tags)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (product_id, merchant_id, name, description, category, price, original_price, inventory, tags_json))
-    
+    if existing:
+        product_id = existing["id"]
+        cursor.execute("""
+            UPDATE products 
+            SET inventory = ?, price = ?, description = ?, category = ?
+            WHERE id = ?
+        """, (inventory, price, desc_val, cat_val, product_id))
+    else:
+        product_id = f"prod_csv_{uuid.uuid4().hex[:8]}"
+        cursor.execute("""
+            INSERT INTO products (id, merchant_id, name, description, category, price, original_price, inventory, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (product_id, merchant_id, clean_name, desc_val, cat_val, price, original_price, inventory, tags_json))
+        
     conn.commit()
     prod = get_product_by_id(product_id)
     conn.close()
     return prod
 
-def create_order(merchant_id: str, amount_paise: int, razorpay_order_id: Optional[str] = None, buyer_agent_id: Optional[str] = None, receipt: Optional[str] = None) -> Dict[str, Any]:
+def deduct_product_inventory(product_id: str, quantity: int = 1) -> bool:
+    """Deduct product inventory in SQLite database when an order is completed."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE products 
+        SET inventory = MAX(0, inventory - ?) 
+        WHERE id = ?
+    """, (quantity, product_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def create_order(merchant_id: str, amount_paise: int, razorpay_order_id: Optional[str] = None, buyer_agent_id: Optional[str] = None, receipt: Optional[str] = None, items_json: Optional[str] = '[]', campaign_id: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db()
     cursor = conn.cursor()
     order_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
     
-    cursor.execute("""
-        INSERT INTO orders (id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'created', ?)
-    """, (order_id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, created_at))
+    try:
+        cursor.execute("""
+            INSERT INTO orders (id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, items_json, status, created_at, campaign_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, ?)
+        """, (order_id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, items_json or '[]', created_at, campaign_id))
+    except Exception as e:
+        print("DEBUG create_order exception:", e)
+        cursor.execute("""
+            INSERT INTO orders (id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, items_json, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?)
+        """, (order_id, merchant_id, razorpay_order_id, buyer_agent_id, amount_paise, receipt, items_json or '[]', created_at))
     
     conn.commit()
     row = cursor.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
     conn.close()
+
+    if campaign_id:
+        increment_campaign_conversion(campaign_id)
+
     return dict(row)
+
+def increment_campaign_conversion(campaign_id: str):
+    """Increment conversions count in campaigns table when an order is completed via campaign link."""
+    if not campaign_id:
+        return
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE campaigns SET conversions = conversions + 1 WHERE id = ? OR payment_link_id = ?",
+        (campaign_id, campaign_id)
+    )
+    conn.commit()
+    conn.close()
 
 def get_orders_by_merchant(merchant_id: str) -> List[Dict[str, Any]]:
     conn = get_db()
@@ -592,22 +711,121 @@ def get_active_campaigns() -> List[Dict[str, Any]]:
     conn.close()
     return [dict(r) for r in rows]
 
-def log_audit(agent_id: str, agent_type: str, action_type: str, status: str, merchant_id: Optional[str] = None, bound: Optional[str] = None, reasoning: Optional[str] = None, razorpay_ref: Optional[str] = None, amount_paise: Optional[int] = None, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+def log_audit(agent_id: str, agent_type: str, action_type: str, status: str, merchant_id: Optional[str] = None, bound: Optional[str] = None, reasoning: Optional[str] = None, razorpay_ref: Optional[str] = None, amount_paise: Optional[int] = None, payload: Dict[str, Any] = None, source: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db()
     cursor = conn.cursor()
     audit_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
-    payload_json = json.dumps(payload or {})
     
-    cursor.execute("""
-        INSERT INTO audit_logs (id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (audit_id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload_json, timestamp))
+    payload_dict = dict(payload or {})
+    if source and "source" not in payload_dict:
+        payload_dict["source"] = source
+    payload_json = json.dumps(payload_dict)
+    
+    try:
+        cursor.execute("""
+            INSERT INTO audit_logs (id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload, timestamp, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (audit_id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload_json, timestamp, source))
+    except Exception:
+        cursor.execute("""
+            INSERT INTO audit_logs (id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (audit_id, merchant_id, agent_id, agent_type, action_type, status, bound, reasoning, razorpay_ref, amount_paise, payload_json, timestamp))
     
     conn.commit()
     row = cursor.execute("SELECT * FROM audit_logs WHERE id = ?", (audit_id,)).fetchone()
     conn.close()
     return dict(row)
+
+
+def record_product_co_occurrences(merchant_id: str, product_ids: List[str]):
+    """
+    PART A: Automatically record co-occurrence statistics for completed orders.
+    Generates unique pairs (prod_a, prod_b) with prod_a < prod_b alphabetically
+    and increments times_bought_together in product_pair_stats.
+    """
+    if not product_ids or len(product_ids) < 2:
+        return
+
+    unique_pids = sorted(list(set([str(p).strip() for p in product_ids if p and str(p).strip()])))
+    if len(unique_pids) < 2:
+        return
+
+    conn = get_db()
+    cursor = conn.cursor()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for i in range(len(unique_pids)):
+        for j in range(i + 1, len(unique_pids)):
+            prod_a = unique_pids[i]
+            prod_b = unique_pids[j]
+
+            cursor.execute("""
+                INSERT INTO product_pair_stats (product_a_id, product_b_id, merchant_id, times_bought_together, last_updated)
+                VALUES (?, ?, ?, 1, ?)
+                ON CONFLICT(product_a_id, product_b_id) DO UPDATE SET
+                    times_bought_together = times_bought_together + 1,
+                    last_updated = ?
+            """, (prod_a, prod_b, merchant_id, now_iso, now_iso))
+
+    conn.commit()
+    conn.close()
+
+
+def get_top_co_purchased_products(product_id: str, merchant_id: str, min_times: int = 3) -> List[Dict[str, Any]]:
+    """
+    PART B & Fix 2: Queries product_pair_stats for pairs containing product_id within merchant_id.
+    Requires min_times co-purchases (default 3) and requires total_base_orders >= 5 before stating percentage claims.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+
+    rows = cursor.execute("""
+        SELECT 
+            CASE WHEN product_a_id = ? THEN product_b_id ELSE product_a_id END as partner_id,
+            times_bought_together
+        FROM product_pair_stats
+        WHERE (product_a_id = ? OR product_b_id = ?)
+          AND merchant_id = ?
+          AND times_bought_together >= ?
+        ORDER BY times_bought_together DESC
+    """, (product_id, product_id, product_id, merchant_id, min_times)).fetchall()
+
+    if not rows:
+        conn.close()
+        return []
+
+    # Calculate total orders containing base product_id to compute exact co-occurrence percentage
+    order_rows = cursor.execute("SELECT items_json FROM orders WHERE status IN ('created', 'completed') AND (merchant_id = ? OR merchant_id IS NULL)", (merchant_id,)).fetchall()
+    total_base_orders = 0
+    for r in order_rows:
+        try:
+            items = json.loads(r["items_json"] or "[]")
+            if any(item.get("id") == product_id for item in items):
+                total_base_orders += 1
+        except Exception:
+            pass
+
+    results = []
+    for r in rows:
+        partner_id = r["partner_id"]
+        times = r["times_bought_together"]
+        base_count = max(total_base_orders, times)
+        # Fix 2: Only calculate percentage if sample size is at least 5 total base product orders
+        pct = round((times / base_count) * 100.0, 1) if base_count >= 5 else None
+
+        partner_prod = get_product_by_id(partner_id)
+        if partner_prod:
+            results.append({
+                "product": partner_prod,
+                "times_bought_together": times,
+                "co_occurrence_pct": pct,
+                "total_base_orders": base_count
+            })
+
+    conn.close()
+    return results
 
 def get_audit_logs(merchant_id: Optional[str] = None, agent_type: Optional[str] = None, status: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
     conn = get_db()
@@ -662,3 +880,27 @@ def get_audit_stats(merchant_id: Optional[str] = None) -> Dict[str, Any]:
         "totalRevenuePaise": rev,
         "blockedActions": by_status.get("BLOCKED", 0)
     }
+
+def get_recent_orders(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    rows = cursor.execute("""
+        SELECT o.*, m.name as merchant_name
+        FROM orders o
+        LEFT JOIN merchants m ON o.merchant_id = m.id
+        ORDER BY o.created_at DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    
+    res = []
+    for r in rows:
+        item = dict(r)
+        raw_items = item.get("items_json") or "[]"
+        try:
+            parsed = json.loads(raw_items)
+        except Exception:
+            parsed = []
+        item["items"] = parsed
+        res.append(item)
+    return res
