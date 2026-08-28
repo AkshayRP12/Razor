@@ -203,7 +203,7 @@
       const data = await res.json();
       document.getElementById(thinkingId)?.remove();
 
-      if (data.status === 'BLOCKED' && data.reason !== 'stock_shortfall_clarify' && data.actionType !== 'stock_shortfall_clarify') {
+      if (data.status === 'BLOCKED' && data.actionType !== 'shortfall_cancelled' && data.reason !== 'stock_shortfall_clarify' && data.actionType !== 'stock_shortfall_clarify') {
         appendBubble('ai', `⚠️ Budget limit reached: ${data.message || data.reasoning} Click 'Reset Session' above to clear cart.`);
         return;
       }

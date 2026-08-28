@@ -472,12 +472,13 @@ def generate_campaign_idea(merchant_id: str, revenue_goal_paise: int = 5000000, 
     if not low_stock:
         low_stock = all_prods[:2] if all_prods else []
 
-    product_names = ", ".join([p["name"] for p in low_stock[:3]])
+    primary_prod = low_stock[0] if low_stock else None
+    primary_name = primary_prod["name"] if primary_prod else "Promotional Item"
 
     if not is_gemini_configured():
         campaign = {
-            "name": f"Flash Sale: {low_stock[0]['name']}" if low_stock else "Flash Sale",
-            "description": f"Limited time offer on {product_names} from {merchant_name}. Stock running low!",
+            "name": f"Flash Sale: {primary_name}",
+            "description": f"Limited time offer on {primary_name} from {merchant_name}. Stock running low ({primary_prod['inventory']} left)!",
             "targetAudience": "Productivity & setup enthusiasts",
             "discountPercent": 15,
         }

@@ -305,12 +305,20 @@ def get_mock_buyer_reasoning(intent: str, total_budget_paise: int, remaining_bud
         cancel_words = ["no", "cancel", "stop", "nevermind", "abort", "don't", "dont"]
 
         if any(kw in intent_lower for kw in cancel_words) and not is_confirm:
+            canceled_prod_name = top_product['name']
+            if previous_steps:
+                for prev in reversed(previous_steps):
+                    for p in all_products:
+                        if p["name"].lower() in prev.lower():
+                            canceled_prod_name = p["name"]
+                            break
             return {
-                "thoughts": f"User cancelled purchase for {top_product['name']} after inventory shortfall prompt.",
+                "thoughts": f"User cancelled purchase for {canceled_prod_name} after inventory shortfall prompt.",
                 "selectedProductIds": [],
                 "productQuantities": {},
-                "reasoning": f"Understood! Your purchase request for **{top_product['name']}** has been cancelled.",
+                "reasoning": f"Understood! Your purchase request for **{canceled_prod_name}** has been cancelled.",
                 "shouldStop": True,
+                "status": "CANCELLED",
                 "actionType": "shortfall_cancelled"
             }
 
