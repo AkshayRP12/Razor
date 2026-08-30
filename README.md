@@ -6,9 +6,7 @@ ARIA is a **100% Pure Python** full-stack agentic commerce ecosystem built with 
 
 ---
 
-## Why ARIA Wins
 
-Every requirement from the Razorpay problem statement, fully delivered in Python:
 
 | Problem Statement Requirement | ARIA Implementation |
 |---|---|
@@ -155,11 +153,12 @@ python test_aria_agent.py
 | Page | URL | Description |
 |---|---|---|
 | **Launchpad** | `/` | Dashboard with all 5 merchants, order stats, and navigation |
-| **Buyer Chat** | `/buyer` | Conversational AI shopping agent with budget controls & interactive decision buttons |
-| **Merchant OS** | `/merchant` | Inventory management, AI upsell engine, campaign orchestrator, CSV upload |
+| **Buyer Chat** | `/buyer` | Conversational AI shopping agent with budget controls, scrollable cart & interactive `[-] Qty [+]` buttons |
+| **Merchant OS** | `/merchant` | Inventory management, AI upsell engine, interactive campaign & discount orchestrator, CSV upload |
 | **Audit Explorer** | `/audit` | Full platform explainability — every agent action logged with reasoning |
 | **Open Catalog** | `/catalog` | x402/ACP-standard browsable product catalog across all merchants |
-| **Razorpay Pay Link** | `/pay/{link_id}` | Dynamic checkout landing page for Campaign Orchestrator payment links |
+| **Razorpay Pay Link** | `/pay/{link_id}` | Dynamic checkout landing page for Campaign Orchestrator payment links with quantity controls |
+| **Future Scope Mockup** | `/future-scope` | Standalone conceptual mockup demonstrating Occasion-Aware Gifting Recommendations |
 
 ---
 
@@ -172,6 +171,7 @@ python test_aria_agent.py
 | `GET` | `/api/audit` | Audit log entries with filter params (`merchantId`, `agentType`, `status`) |
 | `GET` | `/api/merchant-analytics` | Real SQL aggregations computed live from `aria.db` |
 | `GET` | `/api/buyer-history` | Returns recent completed buyer orders with product details |
+| `GET` | `/api/campaigns` | Active store promotional campaigns stored in `aria.db` |
 | `POST` | `/api/buyer-agent` | Run one step of the AI Buyer Agent reasoning loop |
 | `POST` | `/api/merchant-agent` | Run Merchant Agent upsell or campaign strategy |
 | `POST` | `/api/orders` | Create Razorpay order in test mode and deduct inventory |
@@ -279,4 +279,15 @@ In `/merchant` (or via `POST /api/merchant-agent`), test an upsell request for a
 - **5.5** Reasoning percentage is mathematically accurate and matches database
 
 ### Category 6: Campaign Conversion Attribution (1/1 PASSED)
-- **6.1** Campaign conversion attribution and SQL revenue tracking end-to-endT` summary in `/audit`.
+- **6.1** Campaign conversion attribution and SQL revenue tracking end-to-end
+
+---
+
+## Future Scope — Occasion-Aware Gifting (Conceptual Mockup)
+
+ARIA includes a standalone conceptual preview at **`/future-scope`** ([`future_scope_occasion_gifting.html`](file:///z:/razor/future_scope_occasion_gifting.html)) illustrating how the AI Buyer Agent can proactively surface occasion-based gift recommendations:
+
+- **Calendar Sync Integration**: Connects to Google Calendar to track upcoming personal and cultural occasions (e.g., Sister's Birthday in 5 days, Diwali in 12 days, Friend's Anniversary in 20 days).
+- **Proactive Recommendations**: Surfaces curated gift suggestions before the user types a query, based on recipient interest and store history.
+- **Reasonable Gift Budget Caps**: Enforces per-occasion gift budget bounds (e.g., ₹2,000 gift cap) alongside ARIA's safety rules (in-stock verification, store isolation).
+- **Instant Razorpay Payment Links**: Generates immediate checkout payment links for seamless gift delivery.

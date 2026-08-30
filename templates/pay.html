@@ -28,7 +28,7 @@
       <span style="font-size: 13px; font-weight: 700; color: #60a5fa;">📦 {{ product_name }}</span>
     </div>
 
-    <!-- Pricing Card -->
+    <!-- Pricing Card with Quantity Selector -->
     <div style="background: var(--bg-input); border: 1px solid var(--zinc-700); border-radius: 8px; padding: 18px; margin-bottom: 24px;">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
         <span style="font-size: 12px; color: var(--zinc-400);">Target Audience</span>
@@ -42,14 +42,24 @@
       </div>
       {% endif %}
 
+      <!-- Quantity Selection -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+        <span style="font-size: 12px; color: var(--zinc-300); font-weight: 600;">Quantity</span>
+        <div style="display: flex; align-items: center; gap: 8px; background: var(--zinc-900); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--zinc-700);">
+          <button id="qtyMinusBtn" type="button" style="background: none; border: none; color: var(--zinc-300); font-size: 14px; font-weight: 800; cursor: pointer; padding: 0 4px;">-</button>
+          <span id="qtyDisplay" style="font-size: 14px; font-weight: 700; color: var(--zinc-50); font-family: var(--font-mono); min-width: 20px; text-align: center;">1</span>
+          <button id="qtyPlusBtn" type="button" style="background: none; border: none; color: var(--amber-400); font-size: 14px; font-weight: 800; cursor: pointer; padding: 0 4px;">+</button>
+        </div>
+      </div>
+
       <div style="display: flex; align-items: flex-end; justify-content: space-between; border-top: var(--border-default); padding-top: 12px; margin-top: 12px;">
         <div>
           <div style="font-size: 10px; text-transform: uppercase; color: var(--zinc-500); font-weight: 600;">Total Payable</div>
           {% if campaign and campaign.discount_percent %}
-          <div style="font-size: 12px; text-decoration: line-through; color: var(--zinc-500);">{{ original_price_formatted }}</div>
+          <div id="originalTotalText" style="font-size: 12px; text-decoration: line-through; color: var(--zinc-500);">{{ original_price_formatted }}</div>
           {% endif %}
         </div>
-        <div style="font-size: 24px; font-weight: 800; font-family: var(--font-mono); color: var(--amber-500);">
+        <div id="finalTotalText" style="font-size: 24px; font-weight: 800; font-family: var(--font-mono); color: var(--amber-500);">
           {{ final_price_formatted }}
         </div>
       </div>
@@ -57,7 +67,7 @@
 
     <!-- Action Button -->
     <button id="payNowBtn" class="btn btn-accent" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; background: var(--amber-500); color: #000; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-      <span>Pay {{ final_price_formatted }} via Razorpay</span>
+      <span id="payBtnLabel">Pay {{ final_price_formatted }} via Razorpay</span>
       <span>&rarr;</span>
     </button>
 
@@ -71,10 +81,48 @@
 </div>
 
 <script>
+const baseUnitPricePaise = {{ final_amount_paise }};
+const baseOriginalPricePaise = {{ original_price_paise if original_price_paise else final_amount_paise }};
+let currentQty = 1;
+
+function formatRupees(paise) {
+  return '₹' + Math.floor(paise / 100).toLocaleString('en-IN');
+}
+
+function updatePricingUI() {
+  document.getElementById('qtyDisplay').textContent = currentQty;
+  const currentTotalPaise = baseUnitPricePaise * currentQty;
+  const currentOriginalPaise = baseOriginalPricePaise * currentQty;
+
+  document.getElementById('finalTotalText').textContent = formatRupees(currentTotalPaise);
+  const origText = document.getElementById('originalTotalText');
+  if (origText) {
+    origText.textContent = formatRupees(currentOriginalPaise);
+  }
+  document.getElementById('payBtnLabel').textContent = `Pay ${formatRupees(currentTotalPaise)} via Razorpay (${currentQty}x)`;
+}
+
+document.getElementById('qtyMinusBtn').addEventListener('click', () => {
+  if (currentQty > 1) {
+    currentQty--;
+    updatePricingUI();
+  }
+});
+
+document.getElementById('qtyPlusBtn').addEventListener('click', () => {
+  currentQty++;
+  updatePricingUI();
+});
+
 document.getElementById('payNowBtn').addEventListener('click', async () => {
   const btn = document.getElementById('payNowBtn');
   btn.disabled = true;
   btn.innerHTML = '<span>Processing Payment...</span>';
+
+  const totalPaise = baseUnitPricePaise * currentQty;
+  const prodId = '{{ product_id }}';
+  const quantities = {};
+  quantities[prodId] = currentQty;
 
   try {
     const res = await fetch('/api/orders', {
@@ -82,9 +130,10 @@ document.getElementById('payNowBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         merchantId: '{{ campaign.merchant_id if campaign else "merchant_byteforge" }}',
-        amount: {{ final_amount_paise }},
+        amount: totalPaise,
         buyerAgentId: 'buyer_campaign_link',
-        productIds: ['{{ product_id }}'],
+        productIds: [prodId],
+        productQuantities: quantities,
         campaignId: '{{ campaign.id if campaign else "" }}'
       })
     });
@@ -97,11 +146,14 @@ document.getElementById('payNowBtn').addEventListener('click', async () => {
       resultDiv.innerHTML = `
         <div style="padding: 16px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 8px; color: #4ade80; font-size: 13px;">
           <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">🎉 Payment Successful!</div>
-          <div>Razorpay Order ID: <strong style="font-family: var(--font-mono);">${data.order.id}</strong></div>
+          <div>Quantity: <strong>${currentQty}x</strong> &middot; Total Charged: <strong>${formatRupees(totalPaise)}</strong></div>
+          <div style="margin-top: 4px;">Razorpay Order ID: <strong style="font-family: var(--font-mono);">${data.order.id}</strong></div>
           <div style="font-size: 11px; color: var(--zinc-400); margin-top: 6px;">Transaction confirmed in test mode &amp; logged to audit trail.</div>
         </div>
       `;
       btn.style.display = 'none';
+      document.getElementById('qtyMinusBtn').disabled = true;
+      document.getElementById('qtyPlusBtn').disabled = true;
     } else {
       resultDiv.innerHTML = `
         <div style="padding: 16px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; color: #f87171; font-size: 13px;">
@@ -110,13 +162,13 @@ document.getElementById('payNowBtn').addEventListener('click', async () => {
         </div>
       `;
       btn.disabled = false;
-      btn.innerHTML = '<span>Retry Payment</span>';
+      btn.innerHTML = `<span>Retry Payment (${currentQty}x)</span>`;
     }
   } catch (e) {
     console.error(e);
     alert('Payment processing error: ' + e.message);
     btn.disabled = false;
-    btn.innerHTML = '<span>Retry Payment</span>';
+    btn.innerHTML = `<span>Retry Payment (${currentQty}x)</span>`;
   }
 });
 </script>

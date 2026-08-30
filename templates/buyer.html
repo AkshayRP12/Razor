@@ -64,22 +64,23 @@
       </div>
     </div>
 
-    <!-- Right Sidebar (Cart & Prompts) -->
+    <!-- Right Sidebar (Cart & Budget) -->
     <div
-      style="width: 280px; min-width: 280px; border-left: var(--border-default); background: var(--bg-surface); padding: 16px; display: flex; flex-direction: column; overflow-y: auto;">
+      style="width: 290px; min-width: 290px; border-left: var(--border-default); background: var(--bg-surface); padding: 16px; display: flex; flex-direction: column; height: 100%;">
       <div
-        style="font-size: 10px; font-weight: 700; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">
+        style="font-size: 10px; font-weight: 700; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; flex: 0 0 auto;">
         Cart (<span id="cartCount">0</span> items)
       </div>
 
-      <div id="cartItemsList" class="flex flex-col gap-2" style="flex: 1; min-height: 80px;">
+      <!-- Scrollable Cart Items Container -->
+      <div id="cartItemsList" class="flex flex-col gap-2" style="flex: 1 1 auto; overflow-y: auto; max-height: 420px; padding-right: 4px; margin-bottom: 12px;">
         <div style="font-size: 12px; color: var(--zinc-500); text-align: center; padding: 24px 0;">
           No items yet. Start chatting to discover products.
         </div>
       </div>
 
-      <!-- Budget Progress Gauge -->
-      <div style="border-top: var(--border-default); padding-top: 14px; margin-top: 14px;">
+      <!-- Bottom Fixed Budget Progress Gauge -->
+      <div style="border-top: var(--border-default); padding-top: 14px; flex: 0 0 auto;">
         <div class="flex justify-between" style="font-size: 12px; font-weight: 600;">
           <span style="color: var(--zinc-300);">Total Spent</span>
           <span id="totalSpentText" style="color: var(--zinc-50);">₹0</span>
@@ -92,26 +93,6 @@
           <div id="budgetBar"
             style="height: 100%; width: 0%; background: var(--amber-500); transition: width 300ms ease;"></div>
         </div>
-      </div>
-
-      <!-- Quick Sample Prompts -->
-      <div style="margin-top: 20px;">
-        <div
-          style="font-size: 10px; font-weight: 700; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
-          Quick Test Prompts
-        </div>
-        <button class="prompt-btn" data-text="buy me a smartphone with exceptional camera and processor" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; color: var(--amber-400); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
-          📱 "smartphone with exceptional camera &amp; processor"
-        </button>
-        <button class="prompt-btn" data-text="i want an NVIDIA RTX GPU for AI rendering" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-300); background: var(--zinc-800); border: 1px solid var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
-          🎮 "NVIDIA RTX GPU for AI rendering"
-        </button>
-        <button class="prompt-btn" data-text="i need a Marshall bluetooth speaker and Bose soundbar" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-300); background: var(--zinc-800); border: 1px solid var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
-          🔊 "Marshall speaker &amp; Bose soundbar"
-        </button>
-        <button class="prompt-btn" data-text="i want a mechanical keyboard" style="display: block; width: 100%; text-align: left; padding: 8px 10px; font-size: 11px; color: var(--zinc-400); background: transparent; border: 1px dashed var(--zinc-700); cursor: pointer; border-radius: 6px; margin-bottom: 6px;">
-          ⌨️ "mechanical keyboard"
-        </button>
       </div>
     </div>
   </div>
@@ -237,7 +218,7 @@
           const itemTotal = p.totalPrice || (p.price * itemQty);
           const qtyBadge = itemQty > 1 ? `<span style="display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(245,158,11,0.2); color: var(--amber-400); font-weight: 700; font-size: 11px;">${itemQty}x</span>` : '';
           const unitPriceText = itemQty > 1 ? `<div style="font-size: 10px; color: var(--zinc-400);">${formatPrice(p.price)} each</div>` : '';
-          
+
           html += `
             <div style="padding: 10px; border-radius: 8px; background: var(--zinc-900); border: 1px solid var(--zinc-800); margin-bottom: 8px;">
               <div class="flex items-center justify-between">
@@ -438,17 +419,24 @@
 </script>
 
 <!-- Order History Modal -->
-<div id="historyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-  <div style="background: var(--zinc-900); border: 1px solid var(--zinc-800); width: 620px; max-width: 90vw; max-height: 85vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-    <div style="padding: 16px 20px; border-bottom: 1px solid var(--zinc-800); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface);">
+<div id="historyModal"
+  style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+  <div
+    style="background: var(--zinc-900); border: 1px solid var(--zinc-800); width: 620px; max-width: 90vw; max-height: 85vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+    <div
+      style="padding: 16px 20px; border-bottom: 1px solid var(--zinc-800); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface);">
       <div>
         <h3 style="font-size: 16px; font-weight: 700; color: var(--zinc-50); margin: 0;">📋 Buyer Purchase History</h3>
-        <p style="font-size: 11px; color: var(--zinc-400); margin: 2px 0 0;">All completed orders verified by Razorpay SDK &amp; logged to SQLite audit_logs</p>
+        <p style="font-size: 11px; color: var(--zinc-400); margin: 2px 0 0;">All completed orders verified by Razorpay
+          SDK &amp; logged to SQLite audit_logs</p>
       </div>
-      <button id="closeHistoryBtn" style="background: none; border: none; color: var(--zinc-400); font-size: 20px; cursor: pointer; padding: 4px 8px;">&times;</button>
+      <button id="closeHistoryBtn"
+        style="background: none; border: none; color: var(--zinc-400); font-size: 20px; cursor: pointer; padding: 4px 8px;">&times;</button>
     </div>
-    <div id="historyListContent" style="padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;">
-      <div style="text-align: center; color: var(--zinc-500); padding: 30px 0; font-size: 13px;">Loading purchase history...</div>
+    <div id="historyListContent"
+      style="padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;">
+      <div style="text-align: center; color: var(--zinc-500); padding: 30px 0; font-size: 13px;">Loading purchase
+        history...</div>
     </div>
   </div>
 </div>

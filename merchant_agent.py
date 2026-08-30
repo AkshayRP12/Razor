@@ -444,49 +444,43 @@ def _validated_mock_suggestions(
 
 def generate_campaign_idea(merchant_id: str, revenue_goal_paise: int = 5000000, product_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Scans low-stock inventory for a merchant and generates a promotional campaign strategy.
-    Enforces LOW_STOCK_THRESHOLD, separates out-of-stock from low-stock, and caps discount.
+    Scans inventory for a merchant and generates a promotional campaign strategy.
+    Prioritizes high-stock/stagnant inventory for clearance sales & low-stock for scarcity sales.
+    Enforces out-of-stock gates and caps discounts at MAX_DISCOUNT_PERCENT (30%).
     """
     merchant = get_merchant_by_id(merchant_id)
     merchant_name = merchant["name"] if merchant else "Merchant Store"
 
     all_prods = get_products(merchant_id)
+    in_stock_prods = [p for p in all_prods if p.get("inventory", 0) > 0]
 
-    # If a specific product is requested, use it; otherwise find low-stock products
+    # If a specific product is requested, target it
     if product_id:
         target = get_product_by_id(product_id)
-        if target:
-            low_stock = [target] if 0 < target["inventory"] <= LOW_STOCK_THRESHOLD else []
-            is_oos = target["inventory"] <= 0
-        else:
-            low_stock = []
-            is_oos = False
+        candidates = [target] if (target and target.get("inventory", 0) > 0) else []
     else:
-        low_stock = [p for p in all_prods if 0 < p["inventory"] <= LOW_STOCK_THRESHOLD]
-        is_oos = False
+        # Prioritize high-stock/stagnant products (highest inventory) for overstock clearance
+        stagnant_prods = sorted(in_stock_prods, key=lambda p: p.get("inventory", 0), reverse=True)
+        candidates = stagnant_prods[:3] if stagnant_prods else []
 
-    if not low_stock:
-        # If no genuine low-stock, pick first 2 products as sample (for general campaign)
-        low_stock = [p for p in all_prods if p["inventory"] > 0][:2]
-
-    if not low_stock:
-        low_stock = all_prods[:2] if all_prods else []
-
-    primary_prod = low_stock[0] if low_stock else None
+    primary_prod = candidates[0] if candidates else (in_stock_prods[0] if in_stock_prods else None)
     primary_name = primary_prod["name"] if primary_prod else "Promotional Item"
+    inv_count = primary_prod["inventory"] if primary_prod else 0
+
+    campaign_type = "Overstock Clearance" if inv_count >= 15 else "Flash Sale"
 
     if not is_gemini_configured():
         campaign = {
-            "name": f"Flash Sale: {primary_name}",
-            "description": f"Limited time offer on {primary_name} from {merchant_name}. Stock running low ({primary_prod['inventory']} left)!",
+            "name": f"{campaign_type}: {primary_name}",
+            "description": f"Special promotional offer on {primary_name} from {merchant_name}. Inventory: {inv_count} available!",
             "targetAudience": "Productivity & setup enthusiasts",
             "discountPercent": 15,
         }
     else:
         prompt = f"""You are ARIA's Campaign Orchestrator for {merchant_name}. Create a compelling campaign strategy.
 
-LOW INVENTORY PRODUCTS:
-{chr(10).join([f"- {p['name']} | {format_price(p['price'])} | {p['inventory']} left" for p in low_stock[:3]])}
+INVENTORY PRODUCTS FOR PROMOTION:
+{chr(10).join([f"- {p['name']} | {format_price(p['price'])} | {p['inventory']} available" for p in candidates[:3]])}
 
 REVENUE GOAL: {format_price(revenue_goal_paise)}
 
@@ -511,8 +505,8 @@ Create a campaign in this EXACT JSON format:
         except Exception as e:
             print(f"[Campaign Generator Fallback]: {e}")
             campaign = {
-                "name": f"Flash Sale: {low_stock[0]['name']}" if low_stock else "Flash Sale",
-                "description": f"Limited time offer on {product_names} from {merchant_name}.",
+                "name": f"{campaign_type}: {primary_name}",
+                "description": f"Special promotional offer on {primary_name} from {merchant_name}.",
                 "targetAudience": "Productivity & setup enthusiasts",
                 "discountPercent": 15,
             }
@@ -527,7 +521,7 @@ Create a campaign in this EXACT JSON format:
         campaign["discountCapped"] = False
 
     # Attach metadata for the caller
-    campaign["lowStockProducts"] = [{"id": p["id"], "name": p["name"], "inventory": p["inventory"], "price": p["price"]} for p in low_stock[:3]]
-    campaign["primaryPricePaise"] = low_stock[0]["price"] if low_stock else 44900
+    campaign["lowStockProducts"] = [{"id": p["id"], "name": p["name"], "inventory": p["inventory"], "price": p["price"]} for p in candidates[:3]]
+    campaign["primaryPricePaise"] = candidates[0]["price"] if candidates else 44900
 
     return campaign

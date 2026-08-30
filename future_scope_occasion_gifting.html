@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARIA — Future Scope: Occasion-Aware Gifting (Conceptual Mockup)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #09090b;
+      --bg-surface: #18181b;
+      --bg-input: #27272a;
+      --border-default: 1px solid #27272a;
+      --amber-500: #f59e0b;
+      --amber-400: #fbbf24;
+      --amber-900: rgba(245, 158, 11, 0.12);
+      --zinc-50: #fafafa;
+      --zinc-100: #f4f4f5;
+      --zinc-300: #d4d4d8;
+      --zinc-400: #a1a1aa;
+      --zinc-500: #71717a;
+      --zinc-600: #52525b;
+      --zinc-800: #27272a;
+      --zinc-900: #18181b;
+      --blue-500: #3b82f6;
+      --green-500: #22c55e;
+      --red-500: #ef4444;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-base);
+      color: var(--zinc-100);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    /* Top Persistent Future Scope Warning Banner */
+    .future-banner {
+      background: linear-gradient(90deg, #b45309 0%, #d97706 50%, #b45309 100%);
+      color: #ffffff;
+      padding: 10px 20px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .future-banner span.badge-pill {
+      background: #000000;
+      color: var(--amber-400);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+    }
+
+    /* Container Layout */
+    .app-container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 20px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* Header Bar */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      background: var(--bg-surface);
+      border: var(--border-default);
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--amber-500);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--zinc-50);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text p {
+      font-size: 12px;
+      color: var(--zinc-400);
+    }
+
+    /* Calendar Integration Toggle Box */
+    .calendar-toggle-box {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--bg-input);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--zinc-800);
+    }
+
+    .calendar-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green-500);
+    }
+
+    .btn-google {
+      background: #ffffff;
+      color: #1f2937;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-google:hover {
+      background: #f3f4f6;
+    }
+
+    /* Grid Layout */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+    }
+
+    /* Left Sidebar: Upcoming Events */
+    .sidebar-panel {
+      background: var(--bg-surface);
+      border: var(--border-default);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--zinc-400);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .event-card {
+      background: var(--bg-input);
+      border: 1px solid var(--zinc-800);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .event-card:hover,
+    .event-card.active {
+      border-color: var(--amber-500);
+      background: var(--amber-900);
+    }
+
+    .event-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .event-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--zinc-50);
+    }
+
+    .event-days {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--blue-500);
+    }
+
+    .event-meta {
+      font-size: 11px;
+      color: var(--zinc-400);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Right Main Panel: Agent Proactive Chat */
+    .chat-panel {
+      background: var(--bg-surface);
+      border: var(--border-default);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 520px;
+    }
+
+    .chat-messages {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .chat-bubble {
+      padding: 18px;
+      border-radius: 12px;
+      max-width: 90%;
+      font-size: 13px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    .chat-bubble-ai {
+      background: var(--bg-input);
+      border: 1px solid var(--zinc-800);
+      align-self: flex-start;
+      color: var(--zinc-100);
+    }
+
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--amber-400);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* Product Card inside Chat */
+    .product-recommendation-card {
+      margin-top: 14px;
+      background: #18181b;
+      border: 1px solid var(--amber-500);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .product-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .product-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--zinc-50);
+    }
+
+    .product-price {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: var(--amber-400);
+    }
+
+    .product-desc {
+      font-size: 12px;
+      color: var(--zinc-400);
+      margin-bottom: 12px;
+    }
+
+    /* Gating Badge */
+    .gating-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--green-500);
+      margin-bottom: 14px;
+    }
+
+    /* Action Buttons */
+    .action-btn-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-action-primary {
+      background: var(--amber-500);
+      color: #000;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-action-primary:hover {
+      background: var(--amber-400);
+    }
+
+    .btn-action-secondary {
+      background: var(--zinc-800);
+      color: var(--zinc-300);
+      font-weight: 600;
+      font-size: 12px;
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--zinc-700);
+      cursor: pointer;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .modal-box {
+      background: var(--bg-surface);
+      border: var(--border-default);
+      border-radius: 12px;
+      padding: 28px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top Persistent Future Scope Disclaimer Banner -->
+
+
+  <div class="app-container">
+
+    <!-- Header Bar with Calendar Toggle -->
+    <header class="header-bar">
+      <div class="brand-title">
+        <div class="brand-avatar">A</div>
+        <div class="brand-text">
+          <h1>ARIA — Buyer AI Agent</h1>
+          <p>Occasion-Aware Proactive Intelligence (Mockup Preview)</p>
+        </div>
+      </div>
+
+      <div class="calendar-toggle-box">
+        <div class="calendar-status">
+          <span class="status-dot" id="calendarDot"></span>
+          <span id="calendarStatusText">Connected: alex.sample@gmail.com</span>
+        </div>
+        <button class="btn-google" id="toggleCalendarBtn" onclick="toggleCalendar()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span id="btnGoogleText">Sync Google Calendar</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid-layout">
+
+      <!-- Left Column: Upcoming Events Timeline -->
+      <aside class="sidebar-panel">
+        <div class="panel-header">
+          <span>Detected Calendar Occasions</span>
+          <span style="font-size: 10px; color: var(--amber-400); font-family: var(--font-mono);">3 EVENTS</span>
+        </div>
+
+        <!-- Event 1: Sister's Birthday -->
+        <div class="event-card active" id="eventCard1" onclick="selectEvent(1)">
+          <div class="event-card-header">
+            <span class="event-title"> Sister Priya's Birthday</span>
+            <span class="event-days">In 5 Days</span>
+          </div>
+          <div class="event-meta">
+            <span>Date: Sept 3</span>
+            <span style="color: var(--amber-400); font-weight: 600;">Gift Cap: ₹2,000</span>
+          </div>
+        </div>
+
+        <!-- Event 2: Diwali Festival -->
+        <div class="event-card" id="eventCard2" onclick="selectEvent(2)">
+          <div class="event-card-header">
+            <span class="event-title"> Diwali Festival</span>
+            <span class="event-days" style="background: rgba(245,158,11,0.15); color: var(--amber-400);">In 12
+              Days</span>
+          </div>
+          <div class="event-meta">
+            <span>Date: Sept 10</span>
+            <span style="color: var(--amber-400); font-weight: 600;">Gift Cap: ₹5,000</span>
+          </div>
+        </div>
+
+        <!-- Event 3: Best Friend's Anniversary -->
+        <div class="event-card" id="eventCard3" onclick="selectEvent(3)">
+          <div class="event-card-header">
+            <span class="event-title"> Friend Rohan's Anniversary</span>
+            <span class="event-days" style="background: rgba(168,85,247,0.15); color: #c084fc;">In 20 Days</span>
+          </div>
+          <div class="event-meta">
+            <span>Date: Sept 18</span>
+            <span style="color: var(--amber-400); font-weight: 600;">Gift Cap: ₹3,500</span>
+          </div>
+        </div>
+
+        <!-- Bounded Rules Box -->
+        <div
+          style="margin-top: 10px; padding: 12px; background: rgba(39,39,42,0.6); border-radius: 8px; border: var(--border-default);">
+          <div
+            style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--zinc-400); margin-bottom: 6px;">
+            Gated Safety Rules
+          </div>
+          <ul
+            style="font-size: 11px; color: var(--zinc-400); padding-left: 16px; display: flex; flex-direction: column; gap: 4px;">
+            <li>Per-occasion reasonable gift budget cap</li>
+            <li>In-stock inventory verification ($>0$)</li>
+            <li>Store isolation &amp; price multiple checks</li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Right Column: Proactive Agent Chat Bubble -->
+      <main class="chat-panel">
+        <div class="chat-messages" id="chatMessages">
+
+          <!-- AI Proactive Message -->
+          <div class="chat-bubble chat-bubble-ai" id="aiBubbleContent">
+            <div class="ai-badge">
+              <span> PROACTIVE CALENDAR RECOMMENDATION</span>
+            </div>
+            <p id="aiGreeting">
+              Hi Alex! I noticed your <strong>Sister Priya's Birthday</strong> is coming up in <strong>5 days (Sept
+                3)</strong>.
+            </p>
+            <p style="margin-top: 8px; color: var(--zinc-300);" id="aiReasoning">
+              Based on her preference for dermatologist skincare and your past purchases from <strong>GlowLab</strong>,
+              I found a budget-gated gift suggestion:
+            </p>
+
+            <!-- Product Card -->
+            <div class="product-recommendation-card">
+              <div class="product-header">
+                <span class="product-name" id="prodName">GlowLab HydraShield Gel Moisturizer</span>
+                <span class="product-price" id="prodPrice">₹699</span>
+              </div>
+              <p class="product-desc" id="prodDesc">
+                Lightweight 72hr gel moisturizer with Hyaluronic Acid &amp; 5% Niacinamide. Fragrance-free pH 5.5
+                formulation.
+              </p>
+
+              <!-- Safety Gate Badge -->
+              <div class="gating-tag" id="gatingTag">
+                <span> Gated: Within ₹2,000 Gift Budget Cap | Stock: 150 units available</span>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="action-btn-group">
+                <button class="btn-action-primary" onclick="triggerGiftModal()">
+                  <span> Send Gift via Razorpay Link</span>
+                </button>
+                <button class="btn-action-secondary" onclick="cancelGift()">
+                  <span>✕ No thanks</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Chat Input Mock -->
+        <div style="display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: var(--border-default);">
+          <input type="text" placeholder="Ask ARIA about other gift suggestions..."
+            style="flex: 1; background: var(--bg-input); border: 1px solid var(--zinc-800); border-radius: 6px; padding: 10px 14px; color: var(--zinc-50); font-size: 12px;"
+            disabled>
+          <button
+            style="background: var(--zinc-800); color: var(--zinc-500); border: none; border-radius: 6px; padding: 0 16px; font-weight: 600; font-size: 12px; cursor: not-allowed;">Send</button>
+        </div>
+      </main>
+
+    </div>
+  </div>
+
+  <!-- Modal Overlay for Simulated Razorpay Link -->
+  <div class="modal-overlay" id="giftModal">
+    <div class="modal-box">
+      <div
+        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: var(--border-default);">
+        <div style="font-weight: 700; font-size: 15px; color: var(--zinc-50);">💳 Razorpay Payment Link Generated</div>
+        <span
+          style="font-size: 10px; background: rgba(34,197,94,0.15); color: #4ade80; font-weight: 700; padding: 2px 6px; border-radius: 4px;">TEST
+          MODE</span>
+      </div>
+
+      <div style="font-size: 13px; color: var(--zinc-300); margin-bottom: 12px;">
+        ARIA generated a gift checkout payment link for <strong id="modalProdName">GlowLab HydraShield Gel
+          Moisturizer</strong>:
+      </div>
+
+      <div
+        style="padding: 12px; background: var(--bg-input); border-radius: 8px; font-family: var(--font-mono); font-size: 11px; color: #60a5fa; word-break: break-all; margin-bottom: 16px;">
+        https://localhost:8000/pay/plink_gifting_demo_01
+      </div>
+
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; margin-bottom: 20px;">
+        <span>Total Payable Amount:</span>
+        <span style="color: var(--amber-400); font-size: 16px; font-family: var(--font-mono);"
+          id="modalPrice">₹699</span>
+      </div>
+
+      <button onclick="closeGiftModal()"
+        style="width: 100%; padding: 12px; background: var(--amber-500); color: #000; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+        Close Simulation Modal
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const eventData = {
+      1: {
+        name: "Sister Priya's Birthday",
+        days: "5 days (Sept 3)",
+        reasoning: "Based on her preference for dermatologist skincare and your past purchases from <strong>GlowLab</strong>, I found a budget-gated gift suggestion:",
+        prodName: "GlowLab HydraShield Gel Moisturizer",
+        prodPrice: "₹699",
+        prodDesc: "Lightweight 72hr gel moisturizer with Hyaluronic Acid & 5% Niacinamide. Fragrance-free pH 5.5 formulation.",
+        gating: "🛡️ Gated: Within ₹2,000 Gift Budget Cap | Stock: 150 units available"
+      },
+      2: {
+        name: "Diwali Festival",
+        days: "12 days (Sept 10)",
+        reasoning: "For home festival celebrations, here is a popular audio setup gift recommendation from <strong>SonicWave</strong>:",
+        prodName: "Marshall Stanmore III Wireless Speaker",
+        prodPrice: "₹4,999",
+        prodDesc: "Iconic home audio speaker with wider soundstage, 80W Class D amplification, Bluetooth 5.2 LE audio.",
+        gating: "🛡️ Gated: Within ₹5,000 Festival Budget Cap | Stock: 18 units available"
+      },
+      3: {
+        name: "Friend Rohan's Anniversary",
+        days: "20 days (Sept 18)",
+        reasoning: "For an anniversary gift in desk accessories from <strong>DeskCraft</strong>:",
+        prodName: "DeskCraft Ergonomic Bamboo Monitor Arm",
+        prodPrice: "₹3,499",
+        prodDesc: "Gas-spring adjustable desk monitor arm for 17-34 inch displays with solid bamboo finish.",
+        gating: "🛡️ Gated: Within ₹3,500 Gift Budget Cap | Stock: 35 units available"
+      }
+    };
+
+    function selectEvent(id) {
+      document.querySelectorAll('.event-card').forEach(c => c.classList.remove('active'));
+      document.getElementById(`eventCard${id}`).classList.add('active');
+
+      const data = eventData[id];
+      document.getElementById('aiGreeting').innerHTML = `Hi Alex! I noticed your <strong>${data.name}</strong> is coming up in <strong>${data.days}</strong>.`;
+      document.getElementById('aiReasoning').innerHTML = data.reasoning;
+      document.getElementById('prodName').textContent = data.prodName;
+      document.getElementById('prodPrice').textContent = data.prodPrice;
+      document.getElementById('prodDesc').textContent = data.prodDesc;
+      document.getElementById('gatingTag').innerHTML = `<span>${data.gating}</span>`;
+    }
+
+    let isConnected = true;
+    function toggleCalendar() {
+      isConnected = !isConnected;
+      const dot = document.getElementById('calendarDot');
+      const text = document.getElementById('calendarStatusText');
+      const btnText = document.getElementById('btnGoogleText');
+
+      if (isConnected) {
+        dot.style.background = 'var(--green-500)';
+        text.textContent = 'Connected: alex.sample@gmail.com';
+        btnText.textContent = 'Disconnect Calendar';
+      } else {
+        dot.style.background = 'var(--zinc-600)';
+        text.textContent = 'Calendar Sync Paused';
+        btnText.textContent = 'Sync Google Calendar';
+      }
+    }
+
+    function triggerGiftModal() {
+      const activeCard = document.querySelector('.event-card.active');
+      const activeId = activeCard ? activeCard.id.replace('eventCard', '') : 1;
+      const data = eventData[activeId];
+
+      document.getElementById('modalProdName').textContent = data.prodName;
+      document.getElementById('modalPrice').textContent = data.prodPrice;
+      document.getElementById('giftModal').style.display = 'flex';
+    }
+
+    function closeGiftModal() {
+      document.getElementById('giftModal').style.display = 'none';
+    }
+
+    function cancelGift() {
+      alert("Gift recommendation dismissed for this occasion.");
+    }
+  </script>
+</body>
+
+</html>
